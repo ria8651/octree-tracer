@@ -76,7 +76,7 @@ struct State {
     render_pipeline: wgpu::RenderPipeline,
     uniforms: Uniforms,
     uniform_buffer: wgpu::Buffer,
-    // storage_buffer: wgpu::Buffer,
+    storage_buffer: wgpu::Buffer,
     // main_bind_group_layout: wgpu::BindGroupLayout,
     main_bind_group: wgpu::BindGroup,
     input: Input,
@@ -144,13 +144,22 @@ impl State {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        // let storage_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        //     label: Some("DF Buffer"),
-        //     contents: bytemuck::cast_slice(&df.1),
-        //     usage: wgpu::BufferUsages::STORAGE
-        //         | wgpu::BufferUsages::COPY_DST
-        //         | wgpu::BufferUsages::COPY_SRC,
-        // });
+        let data = [
+            u32::from_be_bytes([0, 0, 1, 0b1010_1100]),
+            u32::from_be_bytes([128, 128, 0, 0]),
+            u32::from_be_bytes([0, 128, 128, 0]),
+            u32::from_be_bytes([128, 0, 128, 0]),
+            u32::from_be_bytes([0, 0, 5, 0b0000_0101]),
+            u32::from_be_bytes([0, 255, 0, 0]),
+            u32::from_be_bytes([0, 255, 0, 0]),
+        ];
+        let storage_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("DF Buffer"),
+            contents: bytemuck::cast_slice(&data),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
+        });
 
         let main_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -165,16 +174,16 @@ impl State {
                         },
                         count: None,
                     },
-                    // wgpu::BindGroupLayoutEntry {
-                    //     binding: 1,
-                    //     visibility: wgpu::ShaderStages::FRAGMENT,
-                    //     ty: wgpu::BindingType::Buffer {
-                    //         ty: wgpu::BufferBindingType::Storage { read_only: false },
-                    //         has_dynamic_offset: false,
-                    //         min_binding_size: None,
-                    //     },
-                    //     count: None,
-                    // },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
                 label: Some("main_bind_group_layout"),
             });
@@ -186,10 +195,10 @@ impl State {
                     binding: 0,
                     resource: uniform_buffer.as_entire_binding(),
                 },
-                // wgpu::BindGroupEntry {
-                //     binding: 3,
-                //     resource: storage_buffer.as_entire_binding(),
-                // },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: storage_buffer.as_entire_binding(),
+                },
             ],
             label: Some("uniform_bind_group"),
         });
@@ -265,7 +274,7 @@ impl State {
             render_pipeline,
             uniforms,
             uniform_buffer,
-            // storage_buffer,
+            storage_buffer,
             // main_bind_group_layout,
             main_bind_group,
             input,
@@ -328,7 +337,7 @@ impl State {
             self.input.right as u32 as f32 - self.input.left as u32 as f32,
             self.input.up as u32 as f32 - self.input.down as u32 as f32,
             self.input.forward as u32 as f32 - self.input.backward as u32 as f32,
-        ) * 0.01;
+        ) * 0.05;
 
         let forward: Vector3<f32> = -self.character.pos.to_vec().normalize();
         let right = forward.cross(Vector3::new(0.0, 1.0, 0.0)).normalize();
@@ -362,7 +371,7 @@ impl State {
 
         egui::Window::new("Info").show(&self.egui_platform.context(), |ui| {
             ui.label(format!("FPS: {:.0}", fps));
-            ui.add(egui::Slider::new(&mut self.uniforms.misc_value, -16.0..=16.0).text("Misc"));
+            ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=1000.0).text("Misc"));
             ui.checkbox(&mut self.uniforms.misc_bool, "Misc");
         });
 
