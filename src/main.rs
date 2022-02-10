@@ -9,11 +9,22 @@ use winit::{
 };
 
 fn main() {
+    // Defualt file path that only works on the terminal
+    let path = std::path::PathBuf::from("rsvo/dragon.rsvo");
+    let svo_depth = 8;
+
+    let mut svo = None;
+    if let Ok(bytes) = std::fs::read(path) {
+        if let Ok(output) = load_octree(&bytes, svo_depth) {
+            svo = Some(output);
+        }
+    }
+
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut state = pollster::block_on(State::new(&window));
+    let mut state = pollster::block_on(State::new(&window, svo, svo_depth));
 
     let now = Instant::now();
     event_loop.run(move |event, _, control_flow| {
@@ -84,11 +95,13 @@ struct State {
     previous_frame_time: Option<f64>,
     egui_platform: egui_winit_platform::Platform,
     egui_rpass: egui_wgpu_backend::RenderPass,
+    error_string: String,
+    svo_depth: usize,
 }
 
 impl State {
     // Creating some of the wgpu types requires async code
-    async fn new(window: &Window) -> Self {
+    async fn new(window: &Window, svo: Option<Vec<u32>>, svo_depth: usize) -> Self {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -144,10 +157,28 @@ impl State {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let data = create_octree("rsvo/dragon.rsvo", 8);
+        let defualt_octree = vec![
+            u32::from_be_bytes([0, 0, 1, 0b1010_1100]),
+            u32::from_be_bytes([128, 128, 0, 0]),
+            u32::from_be_bytes([0, 128, 128, 0]),
+            u32::from_be_bytes([128, 0, 128, 0]),
+            u32::from_be_bytes([0, 0, 5, 0b1000_0101]),
+            u32::from_be_bytes([0, 255, 0, 0]),
+            u32::from_be_bytes([0, 255, 0, 0]),
+            u32::from_be_bytes([0, 0, 8, 0b1001_0000]),
+            u32::from_be_bytes([0, 0, 255, 0]),
+            u32::from_be_bytes([0, 255, 0, 0]),
+        ];
+        let mut svo = match svo {
+            Some(svo) => svo,
+            None => defualt_octree,
+        };
+        // So we can load a bigger file later
+        svo.extend(std::iter::repeat(0).take(128000000 - svo.len()));
+
         let storage_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("DF Buffer"),
-            contents: bytemuck::cast_slice(&data),
+            contents: bytemuck::cast_slice(&svo),
             usage: wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
@@ -257,6 +288,8 @@ impl State {
 
         let previous_frame_time = None;
 
+        let error_string = "".to_string();
+
         Self {
             surface,
             device,
@@ -274,6 +307,8 @@ impl State {
             previous_frame_time,
             egui_platform,
             egui_rpass,
+            error_string,
+            svo_depth,
         }
     }
 
@@ -363,6 +398,38 @@ impl State {
 
         egui::Window::new("Info").show(&self.egui_platform.context(), |ui| {
             ui.label(format!("FPS: {:.0}", fps));
+            // let mut max_depth = 0;
+            // ui.add(egui::Slider::new(&mut max_depth, 1..=16).text("Max depth"));
+            if ui.button("Open File").clicked() {
+                let path = native_dialog::FileDialog::new()
+                    .add_filter("Magica Voxel RSVO File", &["rsvo"])
+                    .show_open_single_file()
+                    .unwrap();
+
+                match path {
+                    Some(path) => match std::fs::read(path) {
+                        Ok(bytes) => match load_octree(&bytes, 8) {
+                            Ok(svo) => {
+                                self.queue.write_buffer(
+                                    &self.storage_buffer,
+                                    0,
+                                    bytemuck::cast_slice(&svo),
+                                );
+
+                                self.error_string = "".to_string();
+                            }
+                            Err(e) => {
+                                self.error_string = e;
+                                return;
+                            }
+                        },
+                        Err(error) => {
+                            self.error_string = error.to_string();
+                        }
+                    },
+                    None => self.error_string = "No file selected".to_string(),
+                }
+            }
             ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=10.0).text("Misc"));
             ui.checkbox(&mut self.uniforms.misc_bool, "Misc");
         });
@@ -509,7 +576,7 @@ impl Character {
 
 // #region Create octree
 // Models from https://github.com/ephtracy/voxel-model/tree/master/svo
-fn create_octree(file: &str, bottom_layer: usize) -> Vec<u32> {
+fn load_octree(data: &[u8], bottom_layer: usize) -> Result<Vec<u32>, String> {
     fn create_node(child_mask: u8, child_pointer: u32) -> u32 {
         ((child_pointer as u32) << 8) | (child_mask as u32)
     }
@@ -524,8 +591,6 @@ fn create_octree(file: &str, bottom_layer: usize) -> Vec<u32> {
     }
 
     let mut nodes: Vec<u32> = Vec::new();
-
-    let data = std::fs::read(file).unwrap();
 
     let top_level_start = 16;
     let node_count_start = 20;
@@ -565,6 +630,7 @@ fn create_octree(file: &str, bottom_layer: usize) -> Vec<u32> {
             nodes[i] = u32::from_be_bytes([50, 200, 50, 0]);
         }
     }
-    nodes
+
+    Ok(nodes)
 }
 // #endregion
