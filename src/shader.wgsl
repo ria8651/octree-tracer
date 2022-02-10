@@ -111,6 +111,8 @@ fn get_node(i: u32) -> Node {
 struct Voxel {
     exists: bool;
     value: u32;
+    pos: vec3<f32>;
+    depth: u32;
 };
 
 // Returns leaf containing position
@@ -128,12 +130,12 @@ fn find_voxel(pos: vec3<f32>) -> Voxel {
         );
         let child_index = p.x * 4u + p.y * 2u + p.z;
 
-        node_pos = node_pos + (vec3<f32>(p) * 2.0 - 1.0) / f32(1u << depth);
-
         // Leaf
         if (node.mask == 0u) {
-            return Voxel(true, d.data[node_index]);
+            return Voxel(true, d.data[node_index], node_pos, depth);
         }
+
+        node_pos = node_pos + (vec3<f32>(p) * 2.0 - 1.0) / f32(1u << depth);
 
         // Node
         let bit = (node.mask >> child_index) & 1u;
@@ -149,13 +151,62 @@ fn find_voxel(pos: vec3<f32>) -> Voxel {
         depth = depth + 1u;
     }
 
-    return Voxel(false, 0u);
+    return Voxel(false, 0u, node_pos, depth);
 }
 
-// fn in_bounds(v: vec3<f32>) -> bool {
-//     let s = step(vec3<f32>(-1.0), v) - step(vec3<f32>(1.0), v);
-//     return (s.x * s.y * s.z) > 0.5; 
-// }
+fn in_bounds(v: vec3<f32>) -> bool {
+    let s = step(vec3<f32>(-1.0), v) - step(vec3<f32>(1.0), v);
+    return (s.x * s.y * s.z) > 0.5; 
+}
+
+fn octree_ray(r: Ray) -> vec3<f32> {
+    var dist = 0.0;
+    var pos = r.pos;
+    if (!in_bounds(r.pos)) {
+        // Get position on surface of the octree
+        dist = ray_box_dist(r, vec3<f32>(-1.0), vec3<f32>(1.0));
+        if (dist == 0.0){
+            return vec3<f32>(0.2);
+        }
+
+        pos = r.pos + r.dir * dist;
+    }
+
+    let r_sign = sign(r.dir);
+    // let scale = f32(1u << depth) / 2.0;
+    // let voxel_size = 2.0 / f32(1u << depth);
+
+    var v = Voxel(false, 0u, vec3<f32>(0.0), 0u);
+    var voxel_pos = pos;
+    var count = 0u;
+    loop {
+        v = find_voxel(voxel_pos);
+        if (v.exists) {
+            break;
+        }
+
+        let voxel_size = 2.0 / f32(1u << v.depth);
+        let t_max = (v.pos - pos + r_sign * voxel_size / 2.0) / r.dir;
+
+        // https://www.shadertoy.com/view/4dX3zl (good old shader toy)
+        let mask = vec3<f32>(t_max.xyz <= min(t_max.yzx, t_max.zxy));
+        let normal = mask * -r_sign;
+
+        let t_current = min(min(t_max.x, t_max.y), t_max.z);
+        voxel_pos = pos + r.dir * t_current - normal * 0.000001;
+
+        if (!in_bounds(voxel_pos)) {
+            return vec3<f32>(0.4);
+        }
+
+        count = count + 1u;
+        if (count > 20u) {
+            return vec3<f32>(0.8, 0.2, 0.2);
+        }
+    }
+
+    return vec3<f32>(unpack_u8(v.value).rgb) / 255.0;
+}
 
 [[stage(fragment)]]
 fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
@@ -168,20 +219,12 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     let dir = normalize(dir.xyz / dir.w - pos);
     var ray = Ray(pos.xyz, dir.xyz);
 
-    let dist = ray_box_dist(ray, vec3<f32>(-1.0), vec3<f32>(1.0));
-    if (dist != 0.0) {
-        let pos = ray.pos + ray.dir * (dist + 0.001);
-
-        let voxel = find_voxel(pos);
-
-        if (voxel.exists) {
-            output_colour = vec3<f32>(unpack_u8(voxel.value).rgb) / 255.0;
-        } else {
-            output_colour = vec3<f32>(0.3, 0.3, 0.8);
-        }
-    } else {
-        output_colour = vec3<f32>(0.2, 0.2, 0.2);
-    }
+    output_colour = octree_ray(ray);
+    // if (voxel.exists) {
+    //     output_colour = vec3<f32>(unpack_u8(voxel.value).rgb) / 255.0;
+    // } else {
+    //     output_colour = vec3<f32>(0.3, 0.3, 0.8);
+    // }
     
     return vec4<f32>(pow(clamp(output_colour, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(f32(u.misc_bool) * -1.2 + 2.2 )), 0.5);
 }
@@ -192,3 +235,74 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
 // let index = u32((grid.y * grid_size + grid.x) * grid_size);
 
 // output_colour = vec3<f32>(unpack_u8(d.data[index]).rgb) / 255.0;
+
+// fn octree_ray(r: Ray) -> Voxel {
+//     var dist = 0.0;
+//     var pos = r.pos;
+//     if (!in_bounds(r.pos)) {
+//         // Get position on surface of the octree
+//         dist = ray_box_dist(r, vec3<f32>(-1.0), vec3<f32>(1.0));
+//         if (dist == 0.0){
+//             return Voxel(false, 0u, vec3<f32>(0.0), 0u);
+//         }
+
+//         pos = r.pos + r.dir * dist;
+//     }
+
+//     // Else step further into the octree
+//     let r_sign = sign(r.dir);
+
+//     var t_current = 0.0;
+//     var steps = 0;
+//     var pos = r.pos;
+//     var normal = trunc(r.pos * (1.0 + u.misc_value));
+//     var voxel = Voxel(false, 0u, vec3<f32>(0.0), 0u);
+//     loop {
+//         voxel = find_voxel(pos + -normal * u.misc_value);
+
+//         if (voxel.exists) {
+//             // colour = vec3(steps / float(maxSteps));
+//             break;
+//         }
+        
+//         let size = 1.0 / pow(2.0, f32(voxel.depth - 1u));
+//         var t_max = (voxel.pos - pos + r_sign * size / 2.0) / r.dir;
+//         // t_current += min(min(t_max.x, t_max.y), t_max.z);
+
+//         // Go to next intersection
+//         if (t_max.x < t_max.y) {
+//             if (t_max.x < t_max.z) {
+//                 t_current = t_current + t_max.x;
+//                 // t_max.x += tDelta.x * size;
+//                 normal = vec3<f32>(-r_sign.x, 0.0, 0.0);
+//             } else {
+//                 t_current = t_current + t_max.z;
+//                 // t_max.z += tDelta.z * size;
+//                 normal = vec3<f32>(0.0, 0.0, -r_sign.z);
+//             }
+//         } else {
+//             if (t_max.y < t_max.z) {
+//                 t_current = t_current + t_max.y;
+//                 // t_max.y += tDelta.y * size;
+//                 normal = vec3<f32>(0.0, -r_sign.y, 0.0);
+//             } else {
+//                 t_current = t_current + t_max.z;
+//                 // t_max.z += tDelta.z * size;
+//                 normal = vec3<f32>(0.0, 0.0, -r_sign.z);
+//             }
+//         }
+
+//         // Get voxel in front of ray
+//         pos = r.pos + r.dir * t_current;
+//         if (!in_bounds(pos + -normal * u.misc_value)) {
+//             return Voxel(false, 0u, vec3<f32>(0.0), 0u);
+//         }
+
+//         steps = steps + 1;
+//         if (steps >= 100) {
+//             break;
+//         }
+//     }
+    
+//     return Voxel(true, voxel.value, pos, voxel.depth);
+// }

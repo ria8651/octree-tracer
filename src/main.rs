@@ -149,8 +149,11 @@ impl State {
             u32::from_be_bytes([128, 128, 0, 0]),
             u32::from_be_bytes([0, 128, 128, 0]),
             u32::from_be_bytes([128, 0, 128, 0]),
-            u32::from_be_bytes([0, 0, 5, 0b0000_0101]),
+            u32::from_be_bytes([0, 0, 5, 0b1000_0101]),
             u32::from_be_bytes([0, 255, 0, 0]),
+            u32::from_be_bytes([0, 255, 0, 0]),
+            u32::from_be_bytes([0, 0, 8, 0b1001_0000]),
+            u32::from_be_bytes([0, 0, 255, 0]),
             u32::from_be_bytes([0, 255, 0, 0]),
         ];
         let storage_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -371,7 +374,7 @@ impl State {
 
         egui::Window::new("Info").show(&self.egui_platform.context(), |ui| {
             ui.label(format!("FPS: {:.0}", fps));
-            ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=1000.0).text("Misc"));
+            ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=10.0).text("Misc"));
             ui.checkbox(&mut self.uniforms.misc_bool, "Misc");
         });
 
@@ -422,7 +425,7 @@ impl State {
         self.egui_platform.begin_frame();
 
         // End the UI frame. We could now handle the output and draw the UI with the backend.
-        let (_output, paint_commands) = self.egui_platform.end_frame(Some(&window));
+        let (_output, paint_commands) = self.egui_platform.end_frame(Some(window));
         let paint_jobs = self.egui_platform.context().tessellate(paint_commands);
 
         // Upload all resources for the GPU.
