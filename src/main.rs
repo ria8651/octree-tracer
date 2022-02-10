@@ -144,18 +144,7 @@ impl State {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        let data = [
-            u32::from_be_bytes([0, 0, 1, 0b1010_1100]),
-            u32::from_be_bytes([128, 128, 0, 0]),
-            u32::from_be_bytes([0, 128, 128, 0]),
-            u32::from_be_bytes([128, 0, 128, 0]),
-            u32::from_be_bytes([0, 0, 5, 0b1000_0101]),
-            u32::from_be_bytes([0, 255, 0, 0]),
-            u32::from_be_bytes([0, 255, 0, 0]),
-            u32::from_be_bytes([0, 0, 8, 0b1001_0000]),
-            u32::from_be_bytes([0, 0, 255, 0]),
-            u32::from_be_bytes([0, 255, 0, 0]),
-        ];
+        let data = create_octree("rsvo/dragon.rsvo", 8);
         let storage_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("DF Buffer"),
             contents: bytemuck::cast_slice(&data),
@@ -517,3 +506,65 @@ impl Character {
         }
     }
 }
+
+// #region Create octree
+// Models from https://github.com/ephtracy/voxel-model/tree/master/svo
+fn create_octree(file: &str, bottom_layer: usize) -> Vec<u32> {
+    fn create_node(child_mask: u8, child_pointer: u32) -> u32 {
+        ((child_pointer as u32) << 8) | (child_mask as u32)
+    }
+
+    fn add_nodes(child_mask: u8, nodes: &mut Vec<u32>) {
+        for i in 0..8 {
+            let bit = (child_mask >> i) & 1;
+            if bit != 0 {
+                nodes.push(create_node(0, 0));
+            }
+        }
+    }
+
+    let mut nodes: Vec<u32> = Vec::new();
+
+    let data = std::fs::read(file).unwrap();
+
+    let top_level_start = 16;
+    let node_count_start = 20;
+
+    let top_level = data[top_level_start] as usize; // 14
+
+    let data_start = node_count_start + 4 * (top_level + 1);
+
+    let mut node_counts = [0; 15];
+    for i in 0..(top_level + 1) {
+        let node_count = u32::from_be_bytes([
+            data[node_count_start + i * 4 + 3],
+            data[node_count_start + i * 4 + 2],
+            data[node_count_start + i * 4 + 1],
+            data[node_count_start + i * 4],
+        ]);
+
+        node_counts[i] = node_count;
+        println!("Nodes at level {}: {}", i, node_count);
+    }
+
+    println!("root node ({}): {:#010b}", data_start, data[data_start]);
+
+    // let bottom_layer = 10;
+    let node_end = node_counts[0..bottom_layer].iter().sum::<u32>() as usize;
+    let voxel_end = node_counts[0..(bottom_layer + 1)].iter().sum::<u32>() as usize;
+
+    nodes.push(create_node(0, 0));
+    for i in 0..voxel_end {
+        if i < node_end {
+            let child_mask = data[data_start + i];
+            let child_pointer = nodes.len() as u32;
+            nodes[i] = create_node(child_mask, child_pointer);
+
+            add_nodes(child_mask, &mut nodes);
+        } else {
+            nodes[i] = u32::from_be_bytes([50, 200, 50, 0]);
+        }
+    }
+    nodes
+}
+// #endregion
