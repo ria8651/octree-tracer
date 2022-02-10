@@ -364,7 +364,7 @@ impl State {
             self.input.right as u32 as f32 - self.input.left as u32 as f32,
             self.input.up as u32 as f32 - self.input.down as u32 as f32,
             self.input.forward as u32 as f32 - self.input.backward as u32 as f32,
-        ) * 0.05;
+        ) * 0.01;
 
         let forward: Vector3<f32> = -self.character.pos.to_vec().normalize();
         let right = forward.cross(Vector3::new(0.0, 1.0, 0.0)).normalize();
@@ -430,6 +430,15 @@ impl State {
                     None => self.error_string = "No file selected".to_string(),
                 }
             }
+            ui.horizontal(|ui| {
+                ui.label("x: ");
+                ui.add(egui::DragValue::new(&mut self.uniforms.sun_dir[0]).speed(0.1));
+                ui.label("y: ");
+                ui.add(egui::DragValue::new(&mut self.uniforms.sun_dir[1]).speed(0.1));
+                ui.label("z: ");
+                ui.add(egui::DragValue::new(&mut self.uniforms.sun_dir[2]).speed(0.1));
+            });
+            ui.checkbox(&mut self.uniforms.show_steps, "Show ray steps");
             ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=10.0).text("Misc"));
             ui.checkbox(&mut self.uniforms.misc_bool, "Misc");
         });
@@ -541,6 +550,8 @@ struct Uniforms {
     camera: [[f32; 4]; 4],
     camera_inverse: [[f32; 4]; 4],
     dimensions: [f32; 4],
+    sun_dir: [f32; 4],
+    show_steps: bool,
     misc_value: f32,
     misc_bool: bool,
     junk: [u32; 8],
@@ -555,6 +566,8 @@ impl Uniforms {
             camera: [[0.0; 4]; 4],
             camera_inverse: [[0.0; 4]; 4],
             dimensions: [0.0, 0.0, 0.0, 0.0],
+            sun_dir: [0.2, -1.0, -0.4, 0.0],
+            show_steps: false,
             misc_value: 0.0,
             misc_bool: false,
             junk: [0; 8],

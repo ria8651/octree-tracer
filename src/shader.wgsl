@@ -2,6 +2,8 @@ struct Uniforms {
     camera: mat4x4<f32>;
     camera_inverse: mat4x4<f32>;
     dimensions: vec4<f32>;
+    sun_dir: vec4<f32>;
+    show_steps: bool;
     misc_value: f32;
     misc_bool: bool;
 };
@@ -159,26 +161,38 @@ fn in_bounds(v: vec3<f32>) -> bool {
     return (s.x * s.y * s.z) > 0.5; 
 }
 
-fn octree_ray(r: Ray) -> vec3<f32> {
-    var dist = 0.0;
+struct HitInfo {
+    hit: bool;
+    value: u32;
+    pos: vec3<f32>;
+    normal: vec3<f32>;
+    steps: u32;
+};
+
+fn octree_ray(r: Ray) -> HitInfo {
     var pos = r.pos;
+    let dir_mask = vec3<f32>(r.dir == vec3<f32>(0.0));
+    var dir = r.dir + dir_mask * 0.000001;
+
+    var dist = 0.0;
     if (!in_bounds(r.pos)) {
         // Get position on surface of the octree
         dist = ray_box_dist(r, vec3<f32>(-1.0), vec3<f32>(1.0));
         if (dist == 0.0){
-            return vec3<f32>(0.2);
+            return HitInfo(false, 0u, vec3<f32>(0.0), vec3<f32>(0.0), 0u);
         }
 
-        pos = r.pos + r.dir * dist;
+        pos = r.pos + dir * dist;
     }
 
-    let r_sign = sign(r.dir);
+    let r_sign = sign(dir);
     // let scale = f32(1u << depth) / 2.0;
     // let voxel_size = 2.0 / f32(1u << depth);
 
     var v = Voxel(false, 0u, vec3<f32>(0.0), 0u);
     var voxel_pos = pos;
-    var count = 0u;
+    var steps = 0u;
+    var normal = trunc(pos * 1.000001);
     loop {
         v = find_voxel(voxel_pos);
         if (v.exists) {
@@ -186,26 +200,26 @@ fn octree_ray(r: Ray) -> vec3<f32> {
         }
 
         let voxel_size = 2.0 / f32(1u << v.depth);
-        let t_max = (v.pos - pos + r_sign * voxel_size / 2.0) / r.dir;
+        let t_max = (v.pos - pos + r_sign * voxel_size / 2.0) / dir;
 
         // https://www.shadertoy.com/view/4dX3zl (good old shader toy)
         let mask = vec3<f32>(t_max.xyz <= min(t_max.yzx, t_max.zxy));
-        let normal = mask * -r_sign;
+        normal = mask * -r_sign;
 
         let t_current = min(min(t_max.x, t_max.y), t_max.z);
-        voxel_pos = pos + r.dir * t_current - normal * 0.000001;
+        voxel_pos = pos + dir * t_current - normal * 0.000001;
 
         if (!in_bounds(voxel_pos)) {
-            return vec3<f32>(0.4);
+            return HitInfo(false, 0x20202000u, vec3<f32>(0.0), vec3<f32>(0.0), steps);
         }
 
-        count = count + 1u;
-        if (count > 100u) {
-            return vec3<f32>(0.8, 0.2, 0.2);
+        steps = steps + 1u;
+        if (steps > 100u) {
+            return HitInfo(true, 0xFF000000u, voxel_pos, normal, steps);
         }
     }
 
-    return vec3<f32>(unpack_u8(v.value).rgb) / 255.0;
+    return HitInfo(true, v.value, voxel_pos, normal, steps);
 }
 
 [[stage(fragment)]]
@@ -219,12 +233,27 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     let dir = normalize(dir.xyz / dir.w - pos);
     var ray = Ray(pos.xyz, dir.xyz);
 
-    output_colour = octree_ray(ray);
-    // if (voxel.exists) {
-    //     output_colour = vec3<f32>(unpack_u8(voxel.value).rgb) / 255.0;
-    // } else {
-    //     output_colour = vec3<f32>(0.3, 0.3, 0.8);
-    // }
-    
+    let hit = octree_ray(ray);
+    if (hit.hit) {
+        let sun_dir = normalize(u.sun_dir.xyz);
+
+        let ambient = 0.3;
+        var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
+
+        let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.0156, -sun_dir));
+        if (shadow_hit.hit) {
+            diffuse = 0.0;
+        }
+
+        let colour = vec3<f32>(unpack_u8(hit.value).rgb) / 255.0;
+        output_colour = (ambient + diffuse) * colour;
+    } else {
+        if (u.show_steps) {
+            output_colour = vec3<f32>(f32(hit.steps) / 64.0);
+        } else {
+            output_colour =  vec3<f32>(0.2);
+        }
+    }
+
     return vec4<f32>(pow(clamp(output_colour, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(f32(u.misc_bool) * -1.2 + 2.2 )), 0.5);
 }
