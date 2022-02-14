@@ -11,6 +11,7 @@ const PALETTE_OFFSET: u32 = u32::MAX - PALETTE_SIZE;
 // ^----- 0: Node, 1: Voxel
 pub struct CpuOctree {
     nodes: Vec<u32>,
+    voxels: Vec<u32>,
 }
 
 pub struct Leaf {
@@ -42,6 +43,7 @@ impl Leaf {
 impl CpuOctree {
     pub fn new(mask: u8) -> Self {
         let mut nodes = Vec::new();
+        let mut voxels = Vec::new();
 
         // Add 8 new voxels
         for i in 0..8 {
@@ -52,7 +54,7 @@ impl CpuOctree {
             }
         }
 
-        Self { nodes }
+        Self { nodes, voxels }
     }
 
     pub fn subdivide(&mut self, node: usize, mask: u8) {
@@ -154,11 +156,14 @@ pub fn load_file(file: String, svo_depth: u32) -> Result<CpuOctree, String> {
     let path = std::path::Path::new(&file);
     let data = std::fs::read(path).map_err(|e| e.to_string())?;
     use std::ffi::OsStr;
-    let octree = match path.extension().and_then(OsStr::to_str) {
+    let mut octree = match path.extension().and_then(OsStr::to_str) {
         Some("rsvo") => load_octree(&data, svo_depth),
         Some("vox") => load_vox(&data),
         _ => Err("Unknown file type".to_string()),
     }?;
+
+    octree.raw_data()[0] = 0;
+    octree.raw_data()[7] = 0;
 
     return Ok(octree);
 }

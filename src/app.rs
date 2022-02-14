@@ -13,7 +13,8 @@ pub struct App {
     pub render_pipeline: wgpu::RenderPipeline,
     pub uniforms: Uniforms,
     pub uniform_buffer: wgpu::Buffer,
-    pub storage_buffer: wgpu::Buffer,
+    pub node_buffer: wgpu::Buffer,
+    pub voxel_buffer: wgpu::Buffer,
     // pub main_bind_group_layout: wgpu::BindGroupLayout,
     pub main_bind_group: wgpu::BindGroup,
     pub input: Input,
@@ -91,7 +92,7 @@ impl App {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[uniforms]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
         });
 
         let mut defualt_octree = CpuOctree::new(0);
@@ -109,7 +110,14 @@ impl App {
         // So we can load a bigger file later
         svo.extend(std::iter::repeat(0).take(256000000 - svo.len()));
 
-        let storage_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("DF Buffer"),
+            contents: bytemuck::cast_slice(&svo),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
+        });
+        let voxel_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("DF Buffer"),
             contents: bytemuck::cast_slice(&svo),
             usage: wgpu::BufferUsages::STORAGE
@@ -140,6 +148,16 @@ impl App {
                         },
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
                 label: Some("main_bind_group_layout"),
             });
@@ -153,7 +171,11 @@ impl App {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: storage_buffer.as_entire_binding(),
+                    resource: node_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: voxel_buffer.as_entire_binding(),
                 },
             ],
             label: Some("uniform_bind_group"),
@@ -230,7 +252,8 @@ impl App {
             render_pipeline,
             uniforms,
             uniform_buffer,
-            storage_buffer,
+            node_buffer,
+            voxel_buffer,
             // main_bind_group_layout,
             main_bind_group,
             input,
@@ -373,7 +396,7 @@ impl App {
                     ) {
                         Ok(mut svo) => {
                             self.queue.write_buffer(
-                                &self.storage_buffer,
+                                &self.node_buffer,
                                 0,
                                 bytemuck::cast_slice(&svo.raw_data()),
                             );
@@ -394,7 +417,7 @@ impl App {
                     .logarithmic(true),
             );
             ui.add(
-                egui::Slider::new(&mut self.settings.sensitivity, 0.001..=0.01).text("Sensitivity"),
+                egui::Slider::new(&mut self.settings.sensitivity, 0.00001..=0.01).prefix("Sensitivity").logarithmic(true),
             );
 
             ui.horizontal(|ui| {

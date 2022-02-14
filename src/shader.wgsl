@@ -19,6 +19,8 @@ struct Data {
 [[group(0), binding(1)]]
 var<storage, read_write> d: Data;
 
+// var<uniform> ;
+
 [[stage(vertex)]]
 fn vs_main([[builtin(vertex_index)]] in_vertex_index: u32) -> [[builtin(position)]] vec4<f32> {
     var x = 0.0;
@@ -244,6 +246,13 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
             output_colour =  vec3<f32>(0.2);
         }
     }
+
+    // let ahha = u.dimensions.x * u.dimensions.y;
+    // output_colour = vec3<f32>(f32(atomicAdd(&d.atomic_int, 1u)) / ahha);
+
+    // if (atomicLoad(&d.atomic_int) > u32(ahha)) {
+    //     atomicStore(&d.atomic_int, 0u);
+    // }
 
     // output_colour = vec3<f32>(f32(get_voxel(vec3<f32>(clip_space, 0.0)).value >= 4294901760u));
 
