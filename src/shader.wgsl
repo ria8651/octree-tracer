@@ -4,6 +4,7 @@ struct Uniforms {
     dimensions: vec4<f32>;
     sun_dir: vec4<f32>;
     show_steps: bool;
+    shadows: bool;
     misc_value: f32;
     misc_bool: bool;
 };
@@ -105,55 +106,42 @@ struct Node {
     index: u32;
 };
 
-fn get_node(i: u32) -> Node {
-    let s = unpack_u24u8(d.data[i]);
-    return Node(s.y, s.x);
+fn get_node(i: u32) -> u32 {
+    return d.data[i];
 }
 
 struct Voxel {
-    exists: bool;
     value: u32;
     pos: vec3<f32>;
     depth: u32;
 };
 
 // Returns leaf containing position
-fn find_voxel(pos: vec3<f32>) -> Voxel {
+fn get_voxel(pos: vec3<f32>) -> Voxel {
     var node_index = 0u;
     var node_pos = vec3<f32>(0.0);
-    var depth = 1u;
+    var depth = 0u;
     loop {
-        let node = get_node(node_index);
+        depth = depth + 1u;
 
         let p = vec3<u32>(
-            u32(pos.x > node_pos.x),
-            u32(pos.y > node_pos.y),
-            u32(pos.z > node_pos.z)
+            u32(pos.x >= node_pos.x),
+            u32(pos.y >= node_pos.y),
+            u32(pos.z >= node_pos.z)
         );
         let child_index = p.x * 4u + p.y * 2u + p.z;
 
-        // Leaf
-        if (node.mask == 0u) {
-            return Voxel(true, d.data[node_index], node_pos, depth);
-        }
-
         node_pos = node_pos + (vec3<f32>(p) * 2.0 - 1.0) / f32(1u << depth);
 
-        // Node
-        let bit = (node.mask >> child_index) & 1u;
-        if (bool(bit)) {
-            let mask = (1u << child_index) - 1u;
-            let offset = count_bits(node.mask & mask);
-            node_index = node.index + offset;
-            // return Voxel(true, 65535u);
-        } else {
-            break;
+        if (get_node(node_index + child_index) >= 4294901759u) {
+            return Voxel(get_node(node_index + child_index), node_pos, depth);
         }
 
-        depth = depth + 1u;
+        node_index = get_node(node_index + child_index);
     }
 
-    return Voxel(false, 0u, node_pos, depth);
+    // Should never get here
+    return Voxel(0u, vec3<f32>(0.0), 0u);
 }
 
 fn in_bounds(v: vec3<f32>) -> bool {
@@ -189,13 +177,13 @@ fn octree_ray(r: Ray) -> HitInfo {
     // let scale = f32(1u << depth) / 2.0;
     // let voxel_size = 2.0 / f32(1u << depth);
 
-    var v = Voxel(false, 0u, vec3<f32>(0.0), 0u);
+    var v = Voxel(0u, vec3<f32>(0.0), 0u);
     var voxel_pos = pos;
     var steps = 0u;
     var normal = trunc(pos * 1.000001);
     loop {
-        v = find_voxel(voxel_pos);
-        if (v.exists) {
+        v = get_voxel(voxel_pos);
+        if (v.value >= 4294901760u) {
             break;
         }
 
@@ -240,12 +228,14 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
         let ambient = 0.3;
         var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
 
-        let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.0156, -sun_dir));
-        if (shadow_hit.hit) {
-            diffuse = 0.0;
+        if (u.shadows) {
+            let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.0156, -sun_dir));
+            if (shadow_hit.hit) {
+                diffuse = 0.0;
+            }
         }
 
-        let colour = vec3<f32>(unpack_u8(hit.value).rgb) / 255.0;
+        let colour = vec3<f32>(0.0, 1.0, 0.0);
         output_colour = (ambient + diffuse) * colour;
     } else {
         if (u.show_steps) {
@@ -254,6 +244,8 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
             output_colour =  vec3<f32>(0.2);
         }
     }
+
+    // output_colour = vec3<f32>(f32(get_voxel(vec3<f32>(clip_space, 0.0)).value >= 4294901760u));
 
     return vec4<f32>(pow(clamp(output_colour, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(f32(u.misc_bool) * -1.2 + 2.2 )), 0.5);
 }
