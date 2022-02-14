@@ -1,5 +1,5 @@
 use cgmath::prelude::*;
-use cgmath::{perspective, Deg, Matrix4, Point3, Vector3};
+use cgmath::{perspective, Deg, Euler, Matrix4, Point3, Quaternion, Rad, Vector2, Vector3};
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 use winit::{
@@ -8,22 +8,21 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-const OCTREE_DEPTH: u32 = 12;
-
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
+    let svo_depth = 12;
 
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut state = pollster::block_on(State::new(&window, path.to_string()));
+    let mut state = pollster::block_on(State::new(&window, path.to_string(), svo_depth));
 
     let now = Instant::now();
     event_loop.run(move |event, _, control_flow| {
         state.egui_platform.handle_event(&event);
-        state.input(&event);
+        state.input(&window, &event);
         match event {
             Event::RedrawRequested(_) => {
                 match state.render(&window) {
@@ -35,7 +34,7 @@ fn main() {
                     // All other errors (Outdated, Timeout) should be resolved by the next frame
                     Err(e) => eprintln!("{:?}", e),
                 }
-                state.update(now.elapsed().as_secs_f64());
+                state.update(&window, now.elapsed().as_secs_f64());
             }
             Event::MainEventsCleared => {
                 // RedrawRequested will only trigger once, unless we manually
@@ -89,12 +88,24 @@ struct State {
     previous_frame_time: Option<f64>,
     egui_platform: egui_winit_platform::Platform,
     egui_rpass: egui_wgpu_backend::RenderPass,
-    error_string: String,
+    settings: Settings,
 }
 
 impl State {
     // Creating some of the wgpu types requires async code
-    async fn new(window: &Window, svo_path: String) -> Self {
+    async fn new(window: &Window, svo_path: String, svo_depth: u32) -> Self {
+        let error_string = "".to_string();
+
+        let settings = Settings {
+            svo_depth,
+            fov: 90.0,
+            sensitivity: 0.006,
+            error_string,
+        };
+
+        window.set_cursor_grab(true).unwrap();
+        window.set_cursor_visible(false);
+
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -155,7 +166,7 @@ impl State {
         defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), Leaf::new(1), 3);
         defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), Leaf::new(1), 3);
 
-        let mut svo = match load_file(svo_path) {
+        let mut svo = match load_file(svo_path, svo_depth) {
             Ok(svo) => svo,
             Err(_) => defualt_octree,
         };
@@ -276,8 +287,6 @@ impl State {
 
         let previous_frame_time = None;
 
-        let error_string = "".to_string();
-
         Self {
             surface,
             device,
@@ -295,7 +304,7 @@ impl State {
             previous_frame_time,
             egui_platform,
             egui_rpass,
-            error_string,
+            settings,
         }
     }
 
@@ -308,7 +317,7 @@ impl State {
         }
     }
 
-    fn input(&mut self, event: &Event<()>) {
+    fn input(&mut self, window: &Window, event: &Event<()>) {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::KeyboardInput {
@@ -338,35 +347,58 @@ impl State {
                     Some(VirtualKeyCode::LShift) => {
                         self.input.down = *state == ElementState::Pressed;
                     }
+                    //
+                    Some(VirtualKeyCode::Escape) => {
+                        window.set_cursor_grab(false).unwrap();
+                        window.set_cursor_visible(true);
+                    }
                     _ => {}
                 },
+                _ => {}
+            },
+            Event::DeviceEvent { event, .. } => match event {
+                DeviceEvent::MouseMotion { delta } => {
+                    self.input.mouse_delta = Vector2::new(delta.0 as f32, delta.1 as f32);
+                }
                 _ => {}
             },
             _ => {}
         }
     }
 
-    fn update(&mut self, time: f64) {
+    fn update(&mut self, window: &Window, time: f64) {
         let input = Vector3::new(
             self.input.right as u32 as f32 - self.input.left as u32 as f32,
             self.input.up as u32 as f32 - self.input.down as u32 as f32,
             self.input.forward as u32 as f32 - self.input.backward as u32 as f32,
         ) * 0.01;
 
-        let forward: Vector3<f32> = -self.character.pos.to_vec().normalize();
-        let right = forward.cross(Vector3::new(0.0, 1.0, 0.0)).normalize();
+        let forward: Vector3<f32> = self.character.look.normalize();
+        let right = forward.cross(Vector3::unit_y()).normalize();
         let up = right.cross(forward);
 
         self.character.pos += forward * input.z + right * input.x + up * input.y;
+
+        let delta = self.settings.sensitivity * self.input.mouse_delta;
+        let rotation = Quaternion::from_axis_angle(right, Rad(-delta.y))
+            * Quaternion::from_axis_angle(Vector3::unit_y(), Rad(-delta.x));
+
+        self.input.mouse_delta = Vector2::zero();
+        self.character.look = (rotation * self.character.look).normalize();
 
         let dimensions = [self.size.width as f32, self.size.height as f32];
 
         let view = Matrix4::<f32>::look_at_rh(
             self.character.pos,
-            Point3::new(0.0, 0.0, 0.0),
+            self.character.pos + self.character.look,
             Vector3::unit_y(),
         );
-        let proj = perspective(Deg(90.0), dimensions[0] / dimensions[1], 0.001, 1.0);
+        let proj = perspective(
+            Deg(self.settings.fov),
+            dimensions[0] / dimensions[1],
+            0.001,
+            1.0,
+        );
         let camera = proj * view;
         let camera_inverse = camera.invert().unwrap();
 
@@ -395,23 +427,31 @@ impl State {
                     .unwrap();
 
                 match path {
-                    Some(path) => match load_file(path.into_os_string().into_string().unwrap()) {
+                    Some(path) => match load_file(
+                        path.into_os_string().into_string().unwrap(),
+                        self.settings.svo_depth,
+                    ) {
                         Ok(svo) => {
                             self.queue.write_buffer(
                                 &self.storage_buffer,
                                 0,
                                 bytemuck::cast_slice(&svo.nodes),
                             );
-    
-                            self.error_string = "".to_string();
+                            self.settings.error_string = "".to_string();
                         }
                         Err(e) => {
-                            self.error_string = e;
+                            self.settings.error_string = e;
                         }
-                    }
-                    None => self.error_string = "No file selected".to_string(),
+                    },
+                    None => self.settings.error_string = "No file selected".to_string(),
                 }
             }
+
+            ui.add(egui::Slider::new(&mut self.settings.svo_depth, 0..=20).text("SVO depth"));
+            ui.add(egui::Slider::new(&mut self.settings.fov, 0.1..=120.0).text("FOV"));
+            ui.add(
+                egui::Slider::new(&mut self.settings.sensitivity, 0.001..=0.01).text("Sensitivity"),
+            );
 
             ui.horizontal(|ui| {
                 ui.label("x: ");
@@ -426,6 +466,11 @@ impl State {
             ui.checkbox(&mut self.uniforms.shadows, "Shadows");
             ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=0.01).text("Misc"));
             ui.checkbox(&mut self.uniforms.misc_bool, "Misc");
+            
+            if ui.button("Grab cursour").clicked() {
+                window.set_cursor_grab(true).unwrap();
+                window.set_cursor_visible(false);
+            }
         });
 
         self.queue.write_buffer(
@@ -514,6 +559,7 @@ struct Input {
     left: bool,
     up: bool,
     down: bool,
+    mouse_delta: Vector2<f32>,
 }
 
 impl Input {
@@ -525,6 +571,7 @@ impl Input {
             left: false,
             up: false,
             down: false,
+            mouse_delta: Vector2::zero(),
         }
     }
 }
@@ -541,6 +588,13 @@ struct Uniforms {
     misc_value: f32,
     misc_bool: bool,
     junk: [u32; 8],
+}
+
+struct Settings {
+    svo_depth: u32,
+    fov: f32,
+    sensitivity: f32,
+    error_string: String,
 }
 
 // For bool
@@ -564,23 +618,25 @@ impl Uniforms {
 
 struct Character {
     pos: Point3<f32>,
+    look: Vector3<f32>,
 }
 
 impl Character {
     fn new() -> Self {
         Self {
             pos: Point3::new(0.0, 0.0, -1.5),
+            look: -Vector3::new(0.0, 0.0, -1.5),
         }
     }
 }
 
 // #region Create octree
-fn load_file(file: String) -> Result<CpuOctree, String> {
+fn load_file(file: String, svo_depth: u32) -> Result<CpuOctree, String> {
     let path = std::path::Path::new(&file);
     let data = std::fs::read(path).map_err(|e| e.to_string())?;
     use std::ffi::OsStr;
     let octree = match path.extension().and_then(OsStr::to_str) {
-        Some("rsvo") => load_octree(&data, OCTREE_DEPTH),
+        Some("rsvo") => load_octree(&data, svo_depth),
         Some("vox") => load_vox(&data),
         _ => Err("Unknown file type".to_string()),
     }?;
