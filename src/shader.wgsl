@@ -229,7 +229,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
         var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
 
         if (u.shadows) {
-            let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.0156, -sun_dir));
+            let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir));
             if (shadow_hit.hit) {
                 diffuse = 0.0;
             }

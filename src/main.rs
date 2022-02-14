@@ -8,16 +8,17 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+const OCTREE_DEPTH: u32 = 12;
+
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
-    let svo_depth = 11;
 
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut state = pollster::block_on(State::new(&window, path.to_string(), svo_depth));
+    let mut state = pollster::block_on(State::new(&window, path.to_string()));
 
     let now = Instant::now();
     event_loop.run(move |event, _, control_flow| {
@@ -89,12 +90,11 @@ struct State {
     egui_platform: egui_winit_platform::Platform,
     egui_rpass: egui_wgpu_backend::RenderPass,
     error_string: String,
-    svo_depth: usize,
 }
 
 impl State {
     // Creating some of the wgpu types requires async code
-    async fn new(window: &Window, svo_path: String, svo_depth: usize) -> Self {
+    async fn new(window: &Window, svo_path: String) -> Self {
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -296,7 +296,6 @@ impl State {
             egui_platform,
             egui_rpass,
             error_string,
-            svo_depth,
         }
     }
 
@@ -425,7 +424,7 @@ impl State {
 
             ui.checkbox(&mut self.uniforms.show_steps, "Show ray steps");
             ui.checkbox(&mut self.uniforms.shadows, "Shadows");
-            ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=10.0).text("Misc"));
+            ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=0.01).text("Misc"));
             ui.checkbox(&mut self.uniforms.misc_bool, "Misc");
         });
 
@@ -581,7 +580,7 @@ fn load_file(file: String) -> Result<CpuOctree, String> {
     let data = std::fs::read(path).map_err(|e| e.to_string())?;
     use std::ffi::OsStr;
     let octree = match path.extension().and_then(OsStr::to_str) {
-        Some("rsvo") => load_octree(&data, 10),
+        Some("rsvo") => load_octree(&data, OCTREE_DEPTH),
         Some("vox") => load_vox(&data),
         _ => Err("Unknown file type".to_string()),
     }?;
@@ -590,7 +589,7 @@ fn load_file(file: String) -> Result<CpuOctree, String> {
 }
 
 // Models from https://github.com/ephtracy/voxel-model/tree/master/svo
-fn load_octree(data: &[u8], bottom_layer: usize) -> Result<CpuOctree, String> {
+fn load_octree(data: &[u8], octree_depth: u32) -> Result<CpuOctree, String> {
     let top_level_start = 16;
     let node_count_start = 20;
 
@@ -610,8 +609,7 @@ fn load_octree(data: &[u8], bottom_layer: usize) -> Result<CpuOctree, String> {
         node_counts.push(node_count);
     }
 
-    // let bottom_layer = 10;
-    let node_end = node_counts[0..bottom_layer].iter().sum::<u32>() as usize;
+    let node_end = node_counts[0..octree_depth as usize].iter().sum::<u32>() as usize;
 
     let mut octree = CpuOctree::new(data[data_start]);
 
