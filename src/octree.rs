@@ -1,9 +1,8 @@
 use cgmath::*;
 
 // First palette colour is empty voxel
-const PALETTE: [u32; 3] = [0x00000000, 0x0000FF00, 0x000000FF];
-const PALETTE_SIZE: u32 = 65536;
-const PALETTE_OFFSET: u32 = u32::MAX - PALETTE_SIZE;
+// const PALETTE: [u32; 3] = [0x00000000, 0x0000FF00, 0x000000FF];
+const VOXEL_OFFSET: u32 = u32::MAX / 2;
 
 // Layout
 // 01100101 01100101 01100101 01100101
@@ -14,75 +13,65 @@ pub struct CpuOctree {
     voxels: Vec<u32>,
 }
 
-pub struct Leaf {
-    r: u8,
-    g: u8,
-    b: u8,
-}
-
-impl Leaf {
-    pub fn new(palette_index: u32) -> u32 {
-        palette_index + PALETTE_OFFSET
-    }
-
-    pub fn unpack(v: u32) -> Option<Leaf> {
-        let palette_index = v - PALETTE_OFFSET;
-        if palette_index == 0 {
-            None
-        } else {
-            let palette_colour = PALETTE[palette_index as usize];
-            Some(Leaf {
-                r: (palette_colour >> 16) as u8,
-                g: (palette_colour >> 8) as u8,
-                b: palette_colour as u8,
-            })
-        }
-    }
-}
-
 impl CpuOctree {
     pub fn new(mask: u8) -> Self {
-        let mut nodes = Vec::new();
+        let nodes = Vec::new();
         let mut voxels = Vec::new();
+        // le empty voxel
+        voxels.push(0);
 
+        let mut octree = Self { nodes, voxels };
+        octree.add_voxels(mask, true);
+        octree
+    }
+
+    pub fn create_voxel(&mut self, value: u32) -> u32 {
+        let voxel_index = VOXEL_OFFSET + self.voxels.len() as u32;
+        self.voxels.push(value);
+        voxel_index
+    }
+
+    pub fn add_voxels(&mut self, mask: u8, bottom_level: bool) {
         // Add 8 new voxels
         for i in 0..8 {
             if mask >> i & 1 != 0 {
-                nodes.push(Leaf::new(1));
+                if bottom_level {
+                    let voxel = self.create_voxel(1);
+                    self.nodes.push(voxel);
+                } else {
+                    self.nodes.push(u32::MAX);
+                }
             } else {
-                nodes.push(Leaf::new(0));
+                self.nodes.push(VOXEL_OFFSET);
             }
         }
-
-        Self { nodes, voxels }
     }
 
-    pub fn subdivide(&mut self, node: usize, mask: u8) {
-        if self.nodes[node] < PALETTE_OFFSET {
+    pub fn subdivide(&mut self, node: usize, mask: u8, bottom_level: bool) {
+        if self.nodes[node] < VOXEL_OFFSET {
             panic!("Node already subdivided!");
+        }
+
+        if bottom_level == true {
+            let voxel_index = self.nodes[node] - VOXEL_OFFSET;
+            self.voxels[voxel_index as usize] = 0;
         }
 
         // Turn voxel into node
         self.nodes[node] = self.nodes.len() as u32;
 
-        // Add 8 new voxels
-        for i in 0..8 {
-            if mask >> i & 1 != 0 {
-                self.nodes.push(Leaf::new(1));
-            } else {
-                self.nodes.push(Leaf::new(0));
-            }
-        }
+        self.add_voxels(mask, bottom_level);
     }
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, value: u32, depth: u32) {
         loop {
             let (node, node_depth) = self.get_node(pos);
             if depth == node_depth {
-                self.nodes[node] = value;
+                self.nodes[node] = self.create_voxel(value);
+                self.voxels.push(value);
                 return;
             } else {
-                self.subdivide(node, 0x00000000);
+                self.subdivide(node, 0x00000000, true);
             }
         }
     }
@@ -105,7 +94,7 @@ impl CpuOctree {
                 - Vector3::new(1.0, 1.0, 1.0))
                 / (1 << depth) as f32;
 
-            if self.nodes[node_index + child_index] >= PALETTE_OFFSET {
+            if self.nodes[node_index + child_index] >= VOXEL_OFFSET {
                 return (node_index + child_index, depth);
             }
 
@@ -113,8 +102,8 @@ impl CpuOctree {
         }
     }
 
-    pub fn raw_data(&mut self) -> &mut Vec<u32> {
-        &mut self.nodes
+    pub fn raw_data(&mut self) -> (&mut Vec<u32>, &mut Vec<u32>) {
+        (&mut self.nodes, &mut self.voxels)
     }
 }
 
@@ -129,15 +118,21 @@ impl CpuOctree {
 
 impl std::fmt::Debug for CpuOctree {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "CpuOctree:\n")?;
+        write!(f, "Nodes ({}):\n", self.nodes.len())?;
         let mut c = 0;
         for value in &self.nodes {
-            if *value >= PALETTE_OFFSET {
-                let l = Leaf::unpack(*value);
-                match l {
-                    Some(l) => write!(f, "  Leaf: {}, {}, {}\n", l.r, l.g, l.b)?,
-                    None => write!(f, "  Leaf: empty\n")?,
-                }
+            if *value >= VOXEL_OFFSET {
+                let voxel_index = *value - VOXEL_OFFSET;
+                // let stringgy;
+                // if voxel_index == 0 {
+                //     stringgy = "empty".to_string();
+                // } else {
+                //     let col = PALETTE[self.voxels[voxel_index as usize] as usize];
+                //     stringgy =
+                //         format!("{}, {}, {}", (col >> 16) as u8, (col >> 8) as u8, col as u8);
+                // }
+
+                write!(f, "  Leaf: {}\n", voxel_index)?;
             } else {
                 write!(f, "  Node: {}\n", value)?;
             }
@@ -148,6 +143,11 @@ impl std::fmt::Debug for CpuOctree {
             }
         }
 
+        write!(f, "\nVoxels ({}):\n", self.voxels.len())?;
+        for value in &self.voxels {
+            write!(f, "  Voxel: {}\n", value)?;
+        }
+
         Ok(())
     }
 }
@@ -156,14 +156,14 @@ pub fn load_file(file: String, svo_depth: u32) -> Result<CpuOctree, String> {
     let path = std::path::Path::new(&file);
     let data = std::fs::read(path).map_err(|e| e.to_string())?;
     use std::ffi::OsStr;
-    let mut octree = match path.extension().and_then(OsStr::to_str) {
+    let octree = match path.extension().and_then(OsStr::to_str) {
         Some("rsvo") => load_octree(&data, svo_depth),
         Some("vox") => load_vox(&data),
         _ => Err("Unknown file type".to_string()),
     }?;
 
-    octree.raw_data()[0] = 0;
-    octree.raw_data()[7] = 0;
+    // println!("{:?}", octree);
+    // panic!();
 
     return Ok(octree);
 }
@@ -196,12 +196,12 @@ fn load_octree(data: &[u8], octree_depth: u32) -> Result<CpuOctree, String> {
     let mut data_index = 1;
     let mut node_index = 0;
     while node_index < octree.nodes.len() {
-        if octree.nodes[node_index] != PALETTE_OFFSET {
+        if octree.nodes[node_index] != VOXEL_OFFSET {
             if data_index < node_end {
                 let child_mask = data[data_start + data_index];
-                octree.subdivide(node_index, child_mask);
+                octree.subdivide(node_index, child_mask, false);
             } else {
-                octree.nodes[node_index] = Leaf::new(1);
+                octree.nodes[node_index] = octree.create_voxel(1);
             }
 
             data_index += 1;
@@ -239,7 +239,7 @@ fn load_vox(file: &[u8]) -> Result<CpuOctree, String> {
         pos /= size as f32;
         pos = pos * 2.0 - Vector3::new(1.0, 1.0, 1.0);
 
-        octree.put_in_voxel(pos, Leaf::new(1), depth as u32);
+        octree.put_in_voxel(pos, 1, depth as u32);
     }
 
     println!("SVO size: {}", octree.nodes.len());

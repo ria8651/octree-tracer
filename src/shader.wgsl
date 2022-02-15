@@ -12,14 +12,16 @@ struct Uniforms {
 [[group(0), binding(0)]]
 var<uniform> u: Uniforms;
 
-struct Data {
+struct U32s {
     data: [[stride(4)]] array<u32>;
 };
 
 [[group(0), binding(1)]]
-var<storage, read_write> d: Data;
+var<storage, read_write> n: U32s;
+[[group(0), binding(2)]]
+var<storage, read_write> v: U32s;
 
-// var<uniform> ;
+let VOXEL_OFFSET: u32 = 2147483647u;
 
 [[stage(vertex)]]
 fn vs_main([[builtin(vertex_index)]] in_vertex_index: u32) -> [[builtin(position)]] vec4<f32> {
@@ -108,8 +110,12 @@ struct Node {
     index: u32;
 };
 
-fn get_node(i: u32) -> u32 {
-    return d.data[i];
+fn node(i: u32) -> u32 {
+    return n.data[i];
+}
+
+fn voxel(i: u32) -> u32 {
+    return v.data[i];
 }
 
 struct Voxel {
@@ -135,11 +141,14 @@ fn get_voxel(pos: vec3<f32>) -> Voxel {
 
         node_pos = node_pos + (vec3<f32>(p) * 2.0 - 1.0) / f32(1u << depth);
 
-        if (get_node(node_index + child_index) >= 4294901759u) {
-            return Voxel(get_node(node_index + child_index), node_pos, depth);
+        // tnipt: thing node is pointing to ;)
+        // You know you arn't any better at naming variables
+        let tnipt = node(node_index + child_index);
+        if (tnipt >= VOXEL_OFFSET) {
+            return Voxel(tnipt - VOXEL_OFFSET, node_pos, depth);
         }
 
-        node_index = get_node(node_index + child_index);
+        node_index = tnipt;
     }
 
     // Should never get here
@@ -185,7 +194,7 @@ fn octree_ray(r: Ray) -> HitInfo {
     var normal = trunc(pos * 1.000001);
     loop {
         v = get_voxel(voxel_pos);
-        if (v.value >= 4294901760u) {
+        if (v.value > 0u) {
             break;
         }
 
@@ -254,7 +263,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     //     atomicStore(&d.atomic_int, 0u);
     // }
 
-    // output_colour = vec3<f32>(f32(get_voxel(vec3<f32>(clip_space, 0.0)).value >= 4294901760u));
+    // output_colour = vec3<f32>(f32(voxel(get_voxel(vec3<f32>(clip_space, u.misc_value)).value)));
 
     return vec4<f32>(pow(clamp(output_colour, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(f32(u.misc_bool) * -1.2 + 2.2 )), 0.5);
 }

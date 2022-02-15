@@ -96,30 +96,31 @@ impl App {
         });
 
         let mut defualt_octree = CpuOctree::new(0);
-        defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), Leaf::new(1), 3);
-        defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), Leaf::new(1), 3);
-        defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), Leaf::new(1), 3);
+        defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
+        defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
+        defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
 
         let mut svo = match load_file(svo_path, svo_depth) {
             Ok(svo) => svo,
             Err(_) => defualt_octree,
         };
 
-        let svo = svo.raw_data();
+        let (nodes, voxels) = svo.raw_data();
 
         // So we can load a bigger file later
-        svo.extend(std::iter::repeat(0).take(256000000 - svo.len()));
+        nodes.extend(std::iter::repeat(0).take(256000000 - nodes.len()));
+        voxels.extend(std::iter::repeat(0).take(256000000 - voxels.len()));
 
         let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("DF Buffer"),
-            contents: bytemuck::cast_slice(&svo),
+            contents: bytemuck::cast_slice(&nodes),
             usage: wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
         });
         let voxel_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("DF Buffer"),
-            contents: bytemuck::cast_slice(&svo),
+            contents: bytemuck::cast_slice(&voxels),
             usage: wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
@@ -395,10 +396,16 @@ impl App {
                         self.settings.svo_depth,
                     ) {
                         Ok(mut svo) => {
+                            let (nodes, voxels) = svo.raw_data();
                             self.queue.write_buffer(
                                 &self.node_buffer,
                                 0,
-                                bytemuck::cast_slice(&svo.raw_data()),
+                                bytemuck::cast_slice(&nodes),
+                            );
+                            self.queue.write_buffer(
+                                &self.voxel_buffer,
+                                0,
+                                bytemuck::cast_slice(&voxels),
                             );
                             self.settings.error_string = "".to_string();
                         }
@@ -440,7 +447,7 @@ impl App {
 
             ui.checkbox(&mut self.uniforms.show_steps, "Show ray steps");
             ui.checkbox(&mut self.uniforms.shadows, "Shadows");
-            ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=0.01).text("Misc"));
+            ui.add(egui::Slider::new(&mut self.uniforms.misc_value, 0.0..=1.0).text("Misc"));
             ui.checkbox(&mut self.uniforms.misc_bool, "Misc");
         });
 
