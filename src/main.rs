@@ -9,6 +9,8 @@ use winit::{
 
 mod octree;
 mod app;
+mod render;
+use render::*;
 use app::*;
 use octree::*;
 
@@ -21,24 +23,24 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut state = pollster::block_on(App::new(&window, path.to_string(), svo_depth));
+    let mut app = pollster::block_on(App::new(&window, path.to_string(), svo_depth));
 
     let now = Instant::now();
     event_loop.run(move |event, _, control_flow| {
-        state.egui_platform.handle_event(&event);
-        state.input(&window, &event);
+        app.render.egui_platform.handle_event(&event);
+        app.input(&window, &event);
         match event {
             Event::RedrawRequested(_) => {
-                match state.render(&window) {
+                match app.render.render(&window) {
                     Ok(_) => {}
                     // Reconfigure the surface if lost
-                    Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
+                    Err(wgpu::SurfaceError::Lost) => app.render.resize(app.render.size),
                     // The system is out of memory, we should probably quit
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     // All other errors (Outdated, Timeout) should be resolved by the next frame
                     Err(e) => eprintln!("{:?}", e),
                 }
-                state.update(&window, now.elapsed().as_secs_f64());
+                app.update(now.elapsed().as_secs_f64());
             }
             Event::MainEventsCleared => {
                 // RedrawRequested will only trigger once, unless we manually
@@ -51,11 +53,11 @@ fn main() {
             } if window_id == window.id() => {
                 match event {
                     WindowEvent::Resized(physical_size) => {
-                        state.resize(*physical_size);
+                        app.render.resize(*physical_size);
                     }
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         // new_inner_size is &&mut so we have to dereference it twice
-                        state.resize(**new_inner_size);
+                        app.render.resize(**new_inner_size);
                     }
                     WindowEvent::CloseRequested
                     | WindowEvent::KeyboardInput {
