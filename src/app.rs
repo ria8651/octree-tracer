@@ -1,8 +1,5 @@
 use super::*;
-use winit::{
-    event::*,
-    window::Window,
-};
+use winit::{event::*, window::Window};
 
 pub struct App {
     pub surface: wgpu::Surface,
@@ -92,7 +89,9 @@ impl App {
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[uniforms]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
+            usage: wgpu::BufferUsages::UNIFORM
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
         });
 
         let mut defualt_octree = CpuOctree::new(0);
@@ -112,18 +111,19 @@ impl App {
         voxels.extend(std::iter::repeat(0).take(256000000 - voxels.len()));
 
         let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("DF Buffer"),
+            label: None,
             contents: bytemuck::cast_slice(&nodes),
             usage: wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::COPY_SRC,
         });
         let voxel_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("DF Buffer"),
+            label: None,
             contents: bytemuck::cast_slice(&voxels),
             usage: wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC,
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::MAP_READ,
         });
 
         let main_bind_group_layout =
@@ -424,7 +424,9 @@ impl App {
                     .logarithmic(true),
             );
             ui.add(
-                egui::Slider::new(&mut self.settings.sensitivity, 0.00001..=0.01).prefix("Sensitivity").logarithmic(true),
+                egui::Slider::new(&mut self.settings.sensitivity, 0.00001..=0.01)
+                    .prefix("Sensitivity")
+                    .logarithmic(true),
             );
 
             ui.horizontal(|ui| {
@@ -458,6 +460,31 @@ impl App {
         );
 
         self.egui_platform.update_time(time);
+
+        // self.queue.write_buffer(
+        //     &self.voxel_buffer,
+        //     0,
+        //     bytemuck::cast_slice(&vec![0; 256000000]),
+        // );
+
+        let voxel_slice = self.voxel_buffer.slice(..);
+        let voxel_future = voxel_slice.map_async(wgpu::MapMode::Read);
+
+        self.device.poll(wgpu::Maintain::Wait);
+
+        if let Ok(()) = pollster::block_on(voxel_future) {
+            {
+                let mut data = voxel_slice.get_mapped_range_mut();
+                for byte in data.iter_mut() {
+                    // Reset voxel counters
+                    *byte = 0;
+                }
+            }
+
+            self.voxel_buffer.unmap();
+        } else {
+            panic!("failed to run compute on gpu!")
+        }
     }
 
     pub fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {

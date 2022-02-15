@@ -234,7 +234,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    output_colour = vec3<f32>(f32(v.data[hit.value]) / 100.0);
+    output_colour = vec3<f32>(f32(v.data[hit.value]) / 10.0);
     // if (u.show_steps) {
     //     output_colour = vec3<f32>(f32(hit.steps) / 64.0);
     // } else {
@@ -267,5 +267,5 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
 
     // output_colour = vec3<f32>(f32(voxel(get_voxel(vec3<f32>(clip_space, u.misc_value)).value)));
 
-    return vec4<f32>(pow(clamp(output_colour, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(f32(u.misc_bool) * -1.2 + 2.2 )), 0.5);
+    return vec4<f32>(pow(clamp(output_colour, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(f32(u.misc_bool) * -1.2 + 2.2)), 0.5);
 }

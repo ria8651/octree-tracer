@@ -15,7 +15,7 @@ use octree::*;
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
-    let svo_depth = 12;
+    let svo_depth = 10;
 
     env_logger::init();
     let event_loop = EventLoop::new();
