@@ -188,18 +188,19 @@ fn octree_ray(r: Ray) -> HitInfo {
     // let scale = f32(1u << depth) / 2.0;
     // let voxel_size = 2.0 / f32(1u << depth);
 
-    var v = Voxel(0u, vec3<f32>(0.0), 0u);
+    var voxel = Voxel(0u, vec3<f32>(0.0), 0u);
     var voxel_pos = pos;
     var steps = 0u;
     var normal = trunc(pos * 1.000001);
     loop {
-        v = get_voxel(voxel_pos);
-        if (v.value > 0u) {
+        voxel = get_voxel(voxel_pos);
+        if (voxel.value > 0u) {
+            v.data[voxel.value] = v.data[voxel.value] + 1u;
             break;
         }
 
-        let voxel_size = 2.0 / f32(1u << v.depth);
-        let t_max = (v.pos - pos + r_sign * voxel_size / 2.0) / dir;
+        let voxel_size = 2.0 / f32(1u << voxel.depth);
+        let t_max = (voxel.pos - pos + r_sign * voxel_size / 2.0) / dir;
 
         // https://www.shadertoy.com/view/4dX3zl (good old shader toy)
         let mask = vec3<f32>(t_max.xyz <= min(t_max.yzx, t_max.zxy));
@@ -218,7 +219,7 @@ fn octree_ray(r: Ray) -> HitInfo {
         }
     }
 
-    return HitInfo(true, v.value, voxel_pos, normal, steps);
+    return HitInfo(true, voxel.value, voxel_pos, normal, steps);
 }
 
 [[stage(fragment)]]
@@ -233,28 +234,29 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    if (u.show_steps) {
-        output_colour = vec3<f32>(f32(hit.steps) / 64.0);
-    } else {
-        if (hit.hit) {
-            let sun_dir = normalize(u.sun_dir.xyz);
+    output_colour = vec3<f32>(f32(v.data[hit.value]) / 100.0);
+    // if (u.show_steps) {
+    //     output_colour = vec3<f32>(f32(hit.steps) / 64.0);
+    // } else {
+    //     if (hit.hit) {
+    //         let sun_dir = normalize(u.sun_dir.xyz);
 
-            let ambient = 0.3;
-            var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
+    //         let ambient = 0.3;
+    //         var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
 
-            if (u.shadows) {
-                let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir));
-                if (shadow_hit.hit) {
-                    diffuse = 0.0;
-                }
-            }
+    //         if (u.shadows) {
+    //             let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir));
+    //             if (shadow_hit.hit) {
+    //                 diffuse = 0.0;
+    //             }
+    //         }
 
-            let colour = vec3<f32>(0.0, 1.0, 0.0);
-            output_colour = (ambient + diffuse) * colour;
-        } else {
-            output_colour =  vec3<f32>(0.2);
-        }
-    }
+    //         let colour = vec3<f32>(0.0, 1.0, 0.0);
+    //         output_colour = (ambient + diffuse) * colour;
+    //     } else {
+    //         output_colour =  vec3<f32>(0.2);
+    //     }
+    // }
 
     // let ahha = u.dimensions.x * u.dimensions.y;
     // output_colour = vec3<f32>(f32(atomicAdd(&d.atomic_int, 1u)) / ahha);
