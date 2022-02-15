@@ -93,8 +93,8 @@ impl Render {
         let (nodes, voxels) = svo.raw_data();
 
         // So we can load a bigger file later
-        nodes.extend(std::iter::repeat(0).take(256000000 - nodes.len()));
-        voxels.extend(std::iter::repeat(0).take(256000000 - voxels.len()));
+        // nodes.extend(std::iter::repeat(0).take(256000000 - nodes.len()));
+        // voxels.extend(std::iter::repeat(0).take(256000000 - voxels.len()));
 
         let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
@@ -315,6 +315,7 @@ impl Render {
             panic!("failed to run compute on gpu!")
         }
     }
+
     pub fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let size = window.inner_size();

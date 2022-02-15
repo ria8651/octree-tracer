@@ -7,23 +7,30 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-mod octree;
 mod app;
+mod compute;
+mod octree;
 mod render;
-use render::*;
 use app::*;
+use compute::*;
 use octree::*;
+use render::*;
 
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
-    let svo_depth = 10;
+    let svo_depth = 2;
 
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     let mut app = pollster::block_on(App::new(&window, path.to_string(), svo_depth));
+
+    let compute = Compute::new(&app.render);
+    compute.update(&app.render);
+
+    panic!();
 
     let now = Instant::now();
     event_loop.run(move |event, _, control_flow| {
