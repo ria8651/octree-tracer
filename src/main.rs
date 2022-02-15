@@ -23,13 +23,15 @@ fn main() {
 
     let mut state = pollster::block_on(App::new(&window, path.to_string(), svo_depth));
 
+    let mut count = 0;
+
     let now = Instant::now();
     event_loop.run(move |event, _, control_flow| {
         state.egui_platform.handle_event(&event);
         state.input(&window, &event);
         match event {
             Event::RedrawRequested(_) => {
-                match state.render(&window) {
+                match state.render(&window, count) {
                     Ok(_) => {}
                     // Reconfigure the surface if lost
                     Err(wgpu::SurfaceError::Lost) => state.resize(state.size),
@@ -38,7 +40,8 @@ fn main() {
                     // All other errors (Outdated, Timeout) should be resolved by the next frame
                     Err(e) => eprintln!("{:?}", e),
                 }
-                state.update(&window, now.elapsed().as_secs_f64());
+                state.update(now.elapsed().as_secs_f64(), count);
+                count += 1;
             }
             Event::MainEventsCleared => {
                 // RedrawRequested will only trigger once, unless we manually

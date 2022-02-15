@@ -20,6 +20,7 @@ pub struct App {
     pub egui_platform: egui_winit_platform::Platform,
     pub egui_rpass: egui_wgpu_backend::RenderPass,
     pub settings: Settings,
+    pub render_pipeline2: wgpu::RenderPipeline,
 }
 
 impl App {
@@ -78,7 +79,7 @@ impl App {
         surface.configure(&device, &config);
 
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
+            label: None,
             source: wgpu::ShaderSource::Wgsl(
                 (concat!(include_str!("common.wgsl"), include_str!("shader.wgsl"))).into(),
             ),
@@ -225,6 +226,47 @@ impl App {
             multiview: None,
         });
 
+        let shader2 = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(
+                (concat!(include_str!("common.wgsl"), include_str!("shader2.wgsl"))).into(),
+            ),
+        });
+        let render_pipeline2 = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader2,
+                entry_point: "vs_main",
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader2,
+                entry_point: "fs_main",
+                targets: &[wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                }],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
         let input = Input::new();
         let character = Character::new();
 
@@ -263,6 +305,7 @@ impl App {
             egui_platform,
             egui_rpass,
             settings,
+            render_pipeline2,
         }
     }
 
@@ -329,7 +372,7 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, window: &Window, time: f64) {
+    pub fn update(&mut self, time: f64, count: u32) {
         let input = Vector3::new(
             self.input.right as u32 as f32 - self.input.left as u32 as f32,
             self.input.up as u32 as f32 - self.input.down as u32 as f32,
@@ -467,27 +510,31 @@ impl App {
         //     bytemuck::cast_slice(&vec![0; 256000000]),
         // );
 
-        let voxel_slice = self.voxel_buffer.slice(..);
-        let voxel_future = voxel_slice.map_async(wgpu::MapMode::Read);
-
-        self.device.poll(wgpu::Maintain::Wait);
-
-        if let Ok(()) = pollster::block_on(voxel_future) {
-            {
-                let mut data = voxel_slice.get_mapped_range_mut();
-                for byte in data.iter_mut() {
-                    // Reset voxel counters
-                    *byte = 0;
+        if count % 20 == 1 {
+            let voxel_slice = self.voxel_buffer.slice(..);
+            let voxel_future = voxel_slice.map_async(wgpu::MapMode::Read);
+    
+            self.device.poll(wgpu::Maintain::Wait);
+    
+            if let Ok(()) = pollster::block_on(voxel_future) {
+                // Have to drop data before unmaping
+                {
+                    let mut data = voxel_slice.get_mapped_range_mut();
+                    for byte in data.iter_mut() {
+                        // Reset voxel counters
+                        *byte = 0;
+                    }
                 }
+    
+                self.voxel_buffer.unmap();
+            } else {
+                panic!("failed to run compute on gpu!")
             }
 
-            self.voxel_buffer.unmap();
-        } else {
-            panic!("failed to run compute on gpu!")
         }
     }
 
-    pub fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self, window: &Window, count: u32) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let size = window.inner_size();
 
@@ -516,9 +563,15 @@ impl App {
                 depth_stencil_attachment: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.main_bind_group, &[]);
-            render_pass.draw(0..4, 0..1);
+
+            if count % 2 == 0 {
+                render_pass.set_pipeline(&self.render_pipeline);
+                render_pass.draw(0..4, 0..1);
+            } else {
+                render_pass.set_pipeline(&self.render_pipeline2);
+                render_pass.draw(0..4, 0..1);
+            }
         }
 
         // Draw the UI frame.
@@ -551,8 +604,10 @@ impl App {
 
         // Submit the command buffer.
         self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
 
+        if count % 20 == 1 {
+            output.present();
+        }
         Ok(())
     }
 }
