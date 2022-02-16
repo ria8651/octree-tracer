@@ -142,7 +142,7 @@ fn get_voxel(pos: vec3<f32>) -> Voxel {
         node_pos = node_pos + (vec3<f32>(p) * 2.0 - 1.0) / f32(1u << depth);
 
         // tnipt: thing node is pointing to ;)
-        // You know you arn't any better at naming variables
+        // Lets be honest, you dont know how to name variables either
         let tnipt = node(node_index + child_index);
         if (tnipt >= VOXEL_OFFSET) {
             return Voxel(tnipt - VOXEL_OFFSET, node_pos, depth);

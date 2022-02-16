@@ -19,7 +19,7 @@ pub struct Render {
 
 impl Render {
     // Creating some of the wgpu types requires async code
-    pub async fn new(window: &Window, octree: &CpuOctree) -> Self {
+    pub async fn new(window: &Window, octree: &Octree) -> Self {
         window.set_cursor_grab(true).unwrap();
         window.set_cursor_visible(false);
 

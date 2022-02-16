@@ -2,7 +2,7 @@ use super::*;
 use winit::window::Window;
 
 pub struct App {
-    pub octree: CpuOctree,
+    pub octree: Octree,
     pub render: Render,
     pub compute: Compute,
     pub input: Input,
@@ -23,15 +23,37 @@ impl App {
             error_string,
         };
 
-        let mut defualt_octree = CpuOctree::new(0);
+        let mut defualt_octree = Octree::new(0);
         defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
         defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
         defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
 
-        let octree = match load_file(octree_path, octree_depth) {
+        let mut octree = match load_file(octree_path, octree_depth) {
             Ok(octree) => octree,
             Err(_) => defualt_octree,
         };
+
+        octree.fill_voxel_positions();
+        
+        // println!("Voxel positions:");
+        // for voxel_pos in &octree.voxel_positions {
+        //     println!("{:?}", *voxel_pos);
+        // }
+
+        // let pos = Vector3::new(-0.2, -0.4, 0.2);
+        // let (node_index, _, true_pos) = octree.get_node(pos);
+        // let voxel_index = octree.nodes[node_index] - VOXEL_OFFSET;
+
+        // println!("\ninput pos: {:?}", pos);
+        // println!("true pos: {:?}", true_pos);
+
+        // if octree.voxels[voxel_index as usize] != 0 {
+        //     let voxel_pos = octree.voxel_positions[voxel_index as usize];
+        //     println!("voxel pos: {:?}", voxel_pos);
+        // } else {
+        //     println!("voxel pos: None");
+        // }
+        // panic!();
 
         // So we can load a bigger octree later
         // octree.expand(256000000);
@@ -52,8 +74,6 @@ impl App {
         app.render.render(&window).unwrap();
 
         app.compute.update(&app.octree, &app.render);
-
-        panic!();
 
         app
     }

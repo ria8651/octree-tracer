@@ -1,6 +1,6 @@
 use super::*;
 
-const MAX_SIBDIVISIONS: usize = 20;
+const MAX_SIBDIVISIONS: usize = 128000;
 
 pub struct Compute {
     compute_pipeline: wgpu::ComputePipeline,
@@ -64,8 +64,8 @@ impl Compute {
         }
     }
 
-    pub fn update(&self, octree: &CpuOctree, render: &Render) {
-        let iterations = octree.voxels.len() as u32;
+    pub fn update(&self, octree: &Octree, render: &Render) {
+        let iterations = octree.voxel_len() as u32;
 
         let mut encoder = render
             .device
@@ -90,12 +90,16 @@ impl Compute {
 
         if let Ok(()) = pollster::block_on(feedback_future) {
             {
-                let data = feedback_slice.get_mapped_range();
-                let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
+                let mut data = feedback_slice.get_mapped_range_mut();
+                let result: &mut [u32] = unsafe {
+                    reinterpret::reinterpret_mut_slice(&mut data)
+                };
 
                 let len = result[0] as usize;
+                result[0] = 0;
                 for i in 1..=len {
                     println!("i: {}", result[i]);
+                    result[i] = 0;
                 }
             }
 

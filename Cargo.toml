@@ -20,5 +20,6 @@ egui_winit_platform = "0.13"
 egui_wgpu_backend = "0.16"
 egui_demo_lib = "0.16"
 native-dialog = "0.6"
+reinterpret = "0.2"
 
 [package.metadata.bundle]
