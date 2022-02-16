@@ -234,29 +234,29 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    // output_colour = vec3<f32>(f32(v.data[hit.value]) / 10.0);
-    if (u.show_steps) {
-        output_colour = vec3<f32>(f32(hit.steps) / 64.0);
-    } else {
-        if (hit.hit) {
-            let sun_dir = normalize(u.sun_dir.xyz);
+    output_colour = vec3<f32>(f32(v.data[hit.value]) / 10.0);
+    // if (u.show_steps) {
+    //     output_colour = vec3<f32>(f32(hit.steps) / 64.0);
+    // } else {
+    //     if (hit.hit) {
+    //         let sun_dir = normalize(u.sun_dir.xyz);
 
-            let ambient = 0.3;
-            var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
+    //         let ambient = 0.3;
+    //         var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
 
-            if (u.shadows) {
-                let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir));
-                if (shadow_hit.hit) {
-                    diffuse = 0.0;
-                }
-            }
+    //         if (u.shadows) {
+    //             let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir));
+    //             if (shadow_hit.hit) {
+    //                 diffuse = 0.0;
+    //             }
+    //         }
 
-            let colour = vec3<f32>(0.0, 1.0, 0.0);
-            output_colour = (ambient + diffuse) * colour;
-        } else {
-            output_colour =  vec3<f32>(0.2);
-        }
-    }
+    //         let colour = vec3<f32>(0.0, 1.0, 0.0);
+    //         output_colour = (ambient + diffuse) * colour;
+    //     } else {
+    //         output_colour =  vec3<f32>(0.2);
+    //     }
+    // }
 
     // let ahha = u.dimensions.x * u.dimensions.y;
     // output_colour = vec3<f32>(f32(atomicAdd(&d.atomic_int, 1u)) / ahha);

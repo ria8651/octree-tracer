@@ -19,7 +19,7 @@ pub struct Render {
 
 impl Render {
     // Creating some of the wgpu types requires async code
-    pub async fn new(window: &Window, svo_path: String, svo_depth: u32) -> Self {
+    pub async fn new(window: &Window, octree: &CpuOctree) -> Self {
         window.set_cursor_grab(true).unwrap();
         window.set_cursor_visible(false);
 
@@ -80,36 +80,17 @@ impl Render {
                 | wgpu::BufferUsages::COPY_SRC,
         });
 
-        let mut defualt_octree = CpuOctree::new(0);
-        defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
-        defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
-        defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
-
-        let mut svo = match load_file(svo_path, svo_depth) {
-            Ok(svo) => svo,
-            Err(_) => defualt_octree,
-        };
-
-        let (nodes, voxels) = svo.raw_data();
-
-        // So we can load a bigger file later
-        // nodes.extend(std::iter::repeat(0).take(256000000 - nodes.len()));
-        // voxels.extend(std::iter::repeat(0).take(256000000 - voxels.len()));
+        let (nodes, voxels) = octree.raw_data();
 
         let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&nodes),
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
         let voxel_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&voxels),
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC
-                | wgpu::BufferUsages::MAP_READ,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
         let main_bind_group_layout =
@@ -211,7 +192,6 @@ impl Render {
             multiview: None,
         });
 
-
         // egui
         let size = window.inner_size();
         let egui_platform =
@@ -263,12 +243,7 @@ impl Render {
             character.pos + character.look,
             Vector3::unit_y(),
         );
-        let proj = perspective(
-            Deg(settings.fov),
-            dimensions[0] / dimensions[1],
-            0.001,
-            1.0,
-        );
+        let proj = perspective(Deg(settings.fov), dimensions[0] / dimensions[1], 0.001, 1.0);
         let camera = proj * view;
         let camera_inverse = camera.invert().unwrap();
 
@@ -283,37 +258,6 @@ impl Render {
         );
 
         self.egui_platform.update_time(time);
-
-        // self.queue.write_buffer(
-        //     &self.voxel_buffer,
-        //     0,
-        //     bytemuck::cast_slice(&vec![0; 256000000]),
-        // );
-
-        let voxel_slice = self.voxel_buffer.slice(..);
-        let voxel_future = voxel_slice.map_async(wgpu::MapMode::Read);
-
-        self.device.poll(wgpu::Maintain::Wait);
-
-        if let Ok(()) = pollster::block_on(voxel_future) {
-            {
-                // let data = unsafe {
-                //     std::mem::transmute::<&mut [u8], &mut [u32]>(
-                //         &mut voxel_slice.get_mapped_range_mut(),
-                //     )
-                // };
-
-                let mut data = voxel_slice.get_mapped_range_mut();
-                for byte in data.iter_mut() {
-                    // Reset voxel counters
-                    *byte = 0;
-                }
-            }
-
-            self.voxel_buffer.unmap();
-        } else {
-            panic!("failed to run compute on gpu!")
-        }
     }
 
     pub fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {

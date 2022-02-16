@@ -19,18 +19,13 @@ use render::*;
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
-    let svo_depth = 2;
+    let octree_depth = 2;
 
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut app = pollster::block_on(App::new(&window, path.to_string(), svo_depth));
-
-    let compute = Compute::new(&app.render);
-    compute.update(&app.render);
-
-    panic!();
+    let mut app = pollster::block_on(App::new(&window, path.to_string(), octree_depth));
 
     let now = Instant::now();
     event_loop.run(move |event, _, control_flow| {
@@ -123,7 +118,7 @@ pub struct Uniforms {
 }
 
 pub struct Settings {
-    svo_depth: u32,
+    octree_depth: u32,
     fov: f32,
     sensitivity: f32,
     error_string: String,

@@ -9,8 +9,8 @@ const VOXEL_OFFSET: u32 = u32::MAX / 2;
 //  ^---- Node: Pointer to children, Voxel: Palette index
 // ^----- 0: Node, 1: Voxel
 pub struct CpuOctree {
-    nodes: Vec<u32>,
-    voxels: Vec<u32>,
+    pub nodes: Vec<u32>,
+    pub voxels: Vec<u32>,
 }
 
 impl CpuOctree {
@@ -102,8 +102,13 @@ impl CpuOctree {
         }
     }
 
-    pub fn raw_data(&mut self) -> (&mut Vec<u32>, &mut Vec<u32>) {
-        (&mut self.nodes, &mut self.voxels)
+    pub fn expand(&mut self, size: usize) {
+        self.nodes.extend(std::iter::repeat(0).take(size - self.nodes.len()));
+        self.voxels.extend(std::iter::repeat(0).take(size - self.voxels.len()));
+    }
+
+    pub fn raw_data(&self) -> (&Vec<u32>, &Vec<u32>) {
+        (&self.nodes, &self.voxels)
     }
 }
 
@@ -152,12 +157,12 @@ impl std::fmt::Debug for CpuOctree {
     }
 }
 
-pub fn load_file(file: String, svo_depth: u32) -> Result<CpuOctree, String> {
+pub fn load_file(file: String, octree_depth: u32) -> Result<CpuOctree, String> {
     let path = std::path::Path::new(&file);
     let data = std::fs::read(path).map_err(|e| e.to_string())?;
     use std::ffi::OsStr;
     let octree = match path.extension().and_then(OsStr::to_str) {
-        Some("rsvo") => load_octree(&data, svo_depth),
+        Some("rsvo") => load_octree(&data, octree_depth),
         Some("vox") => load_vox(&data),
         _ => Err("Unknown file type".to_string()),
     }?;

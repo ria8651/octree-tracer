@@ -1,8 +1,12 @@
 use super::*;
 
+const MAX_SIBDIVISIONS: usize = 20;
+
 pub struct Compute {
     compute_pipeline: wgpu::ComputePipeline,
-    bind_group: wgpu::BindGroup,
+    voxel_bind_group: wgpu::BindGroup,
+    feedback_buffer: wgpu::Buffer,
+    feedback_bind_group: wgpu::BindGroup,
 }
 
 impl Compute {
@@ -26,54 +30,76 @@ impl Compute {
                     entry_point: "main",
                 });
 
-        let bind_group_layout = compute_pipeline.get_bind_group_layout(0);
-        let bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let feedback_buffer = render
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&[0; MAX_SIBDIVISIONS]),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
+            });
+
+        let voxel_bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &bind_group_layout,
+            layout: &compute_pipeline.get_bind_group_layout(0),
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: render.voxel_buffer.as_entire_binding(),
             }],
         });
 
+        let feedback_bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &compute_pipeline.get_bind_group_layout(1),
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: feedback_buffer.as_entire_binding(),
+            }],
+        });
+
         Self {
             compute_pipeline,
-            bind_group,
+            voxel_bind_group,
+            feedback_buffer,
+            feedback_bind_group,
         }
     }
 
-    pub fn update(&self, render: &Render) {
+    pub fn update(&self, octree: &CpuOctree, render: &Render) {
+        let iterations = octree.voxels.len() as u32;
+
         let mut encoder = render
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
         {
-            let mut cpass =
+            let mut compute_pass =
                 encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
-            cpass.set_pipeline(&self.compute_pipeline);
-            cpass.set_bind_group(0, &self.bind_group, &[]);
-            cpass.insert_debug_marker("compute collatz iterations");
-            cpass.dispatch(8, 1, 1); // Number of cells to run, the (x,y,z) size of item being processed
+
+            compute_pass.set_pipeline(&self.compute_pipeline);
+            compute_pass.set_bind_group(0, &self.voxel_bind_group, &[]);
+            compute_pass.set_bind_group(1, &self.feedback_bind_group, &[]);
+            compute_pass.dispatch(iterations, 1, 1);
         }
 
-        // Submits command encoder for processing
         render.queue.submit(Some(encoder.finish()));
 
-        let buffer_slice = render.voxel_buffer.slice(..);
-        let voxel_future = buffer_slice.map_async(wgpu::MapMode::Read);
+        let feedback_slice = self.feedback_buffer.slice(..);
+        let feedback_future = feedback_slice.map_async(wgpu::MapMode::Read);
 
         render.device.poll(wgpu::Maintain::Wait);
 
-        if let Ok(()) = pollster::block_on(voxel_future) {
+        if let Ok(()) = pollster::block_on(feedback_future) {
             {
-                let data = buffer_slice.get_mapped_range();
+                let data = feedback_slice.get_mapped_range();
                 let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
 
-                for a in result {
-                    println!("{}", a);
+                let len = result[0] as usize;
+                for i in 1..=len {
+                    println!("i: {}", result[i]);
                 }
             }
 
-            render.voxel_buffer.unmap();
+            self.feedback_buffer.unmap();
         } else {
             panic!("failed to run compute on gpu!")
         }

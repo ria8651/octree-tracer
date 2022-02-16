@@ -2,33 +2,60 @@ use super::*;
 use winit::window::Window;
 
 pub struct App {
+    pub octree: CpuOctree,
     pub render: Render,
+    pub compute: Compute,
     pub input: Input,
     pub character: Character,
     pub settings: Settings,
 }
 
 impl App {
-    pub async fn new(window: &Window, svo_path: String, svo_depth: u32) -> Self {
+    pub async fn new(window: &Window, octree_path: String, octree_depth: u32) -> Self {
         let input = Input::new();
         let character = Character::new();
         let error_string = "".to_string();
 
         let settings = Settings {
-            svo_depth,
+            octree_depth,
             fov: 90.0,
             sensitivity: 0.006,
             error_string,
         };
 
-        let render = Render::new(window, svo_path, settings.svo_depth).await;
+        let mut defualt_octree = CpuOctree::new(0);
+        defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
+        defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
+        defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
 
-        Self {
+        let octree = match load_file(octree_path, octree_depth) {
+            Ok(octree) => octree,
+            Err(_) => defualt_octree,
+        };
+
+        // So we can load a bigger octree later
+        // octree.expand(256000000);
+
+        let render = Render::new(window, &octree).await;
+        let compute = Compute::new(&render);
+
+        let mut app = Self {
+            octree,
             render,
+            compute,
             input,
             character,
             settings,
-        }
+        };
+
+        app.render.update(0.0, &mut app.settings, &app.character);
+        app.render.render(&window).unwrap();
+
+        app.compute.update(&app.octree, &app.render);
+
+        panic!();
+
+        app
     }
 
     pub fn update(&mut self, time: f64) {
@@ -76,10 +103,10 @@ impl App {
                 match path {
                     Some(path) => match load_file(
                         path.into_os_string().into_string().unwrap(),
-                        self.settings.svo_depth,
+                        self.settings.octree_depth,
                     ) {
-                        Ok(mut svo) => {
-                            let (nodes, voxels) = svo.raw_data();
+                        Ok(octree) => {
+                            let (nodes, voxels) = octree.raw_data();
                             self.render.queue.write_buffer(
                                 &self.render.node_buffer,
                                 0,
@@ -100,7 +127,7 @@ impl App {
                 }
             }
 
-            ui.add(egui::Slider::new(&mut self.settings.svo_depth, 0..=20).text("SVO depth"));
+            ui.add(egui::Slider::new(&mut self.settings.octree_depth, 0..=20).text("Octree depth"));
             ui.add(
                 egui::Slider::new(&mut self.settings.fov, 0.01..=100.0)
                     .prefix("FOV: ")
@@ -138,6 +165,7 @@ impl App {
 
         self.render
             .update(time, &mut self.settings, &self.character);
+        self.compute.update(&self.octree, &self.render);
     }
 
     pub fn input(&mut self, window: &Window, event: &Event<()>) {
