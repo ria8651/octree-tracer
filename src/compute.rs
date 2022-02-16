@@ -1,7 +1,8 @@
 use super::*;
 
-const MAX_SIBDIVISIONS: usize = 128000;
-const WORK_GROUP_SIZE: u32 = 128;
+const MAX_SIBDIVISIONS: usize = 512000;
+const WORK_GROUP_SIZE: u32 = 128; // 32 * 32 * 16
+const DISPATCH_SIZE_Y: u32 = 4096;
 
 pub struct Compute {
     compute_pipeline: wgpu::ComputePipeline,
@@ -67,7 +68,7 @@ impl Compute {
 
     pub fn update(&self, render: &Render, octree: &mut Octree, cpu_octree: &mut Octree) {
         let iterations = octree.voxel_len() as u32;
-        let work_group_invocations = (iterations as f32 / WORK_GROUP_SIZE as f32).ceil() as u32;
+        let dispatch_size_x = (iterations as f32 / WORK_GROUP_SIZE as f32 / DISPATCH_SIZE_Y as f32).ceil() as u32;
 
         let mut encoder = render
             .device
@@ -80,7 +81,7 @@ impl Compute {
             compute_pass.set_pipeline(&self.compute_pipeline);
             compute_pass.set_bind_group(0, &self.voxel_bind_group, &[]);
             compute_pass.set_bind_group(1, &self.feedback_bind_group, &[]);
-            compute_pass.dispatch(work_group_invocations, 1, 1);
+            compute_pass.dispatch(dispatch_size_x, DISPATCH_SIZE_Y, 1);
         }
 
         render.queue.submit(Some(encoder.finish()));
@@ -97,8 +98,11 @@ impl Compute {
 
                 let len = result[0] as usize;
                 result[0] = 0;
+
+                println!("Voxel len: {}", iterations);
+
                 for i in 1..=len {
-                    println!("subdivide: {:?}", result[i]);
+                    // println!("subdivide: {:?}", result[i]);
                     let pos = octree.voxel_positions[result[i] as usize];
                     Compute::subdivide_octree(pos, octree, cpu_octree);
                     result[i] = 0;
@@ -115,11 +119,10 @@ impl Compute {
         if pos == Vector3::zero() {
             panic!("Tried to subdivide deleted node!");
         }
-        // println!("subdivide: {:?}", pos);
 
         let (voxel_index, voxel_depth, _) = octree.get_node(pos);
         if voxel_depth < 20 {
-            octree.subdivide(voxel_index, 0b10001001, true, voxel_depth + 1);
+            octree.subdivide(voxel_index, 0b10110111, true, voxel_depth + 1);
         }
         // let (cpu_octree_node, cpu_octree_depth, cpu_octree_pos) = app.cpu_octree.get_node(pos);
     }

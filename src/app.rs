@@ -24,7 +24,7 @@ impl App {
             error_string,
         };
 
-        let octree = Octree::new(0b11000101);
+        let octree = Octree::new(0b10110111);
 
         let mut defualt_octree = Octree::new(0);
         defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
@@ -243,7 +243,6 @@ impl App {
                     delta: winit::event::MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition { y, ..}),
                     ..
                 } => {
-                    println!("{:?}", *y);
                     self.character.speed += *y as f32 / 200.0;
                 }
                 _ => {}
