@@ -153,7 +153,7 @@ pub struct Character {
 impl Character {
     fn new() -> Self {
         Self {
-            pos: Point3::new(0.0, 0.0, -1.5),
+            pos: Point3::new(0.1, 0.2, -1.5),
             look: -Vector3::new(0.0, 0.0, -1.5),
             cursour_grabbed: true,
             speed: -5.0,
@@ -161,51 +161,27 @@ impl Character {
     }
 }
 
-// fn create_view_matrix(fov: f32, aspect: f32) -> Matrix4<f32> {
-
-//     let rotation = Matrix4::new(
-//         right.x,
-//         right.y,
-//         right.z,
-//         0.0,
-//         //
-//         up.x,
-//         up.y,
-//         up.z,
-//         0.0,
-//         //
-//         forward.x,
-//         forward.y,
-//         forward.z,
-//         0.0,
-//         //
-//         0.0,
-//         0.0,
-//         0.0,
-//         1.0,
-//     );
-    
-//     let translation = Matrix4::new (
-//         1.0,
-//         0.0,
-//         0.0,
-//         -pos.x,
-//         //
-//         0.0,
-//         1.0,
-//         0.0,
-//         -pos.y,
-//         //
-//         0.0,
-//         0.0,
-//         1.0,
-//         -pos.z,
-//         //
-//         0.0,
-//         0.0,
-//         0.0,
-//         1.0,
-//     );
-
-//     rotation * translation
-// }
+fn create_proj_matrix(fov: f32, _: f32) -> Matrix4<f32> {
+    let s = 1.0 / ((fov / 2.0) * (std::f32::consts::PI / 180.0)).tan();
+    Matrix4::new(
+        s,
+        0.0,
+        0.0,
+        0.0,
+        //
+        0.0,
+        s,
+        0.0,
+        0.0,
+        //
+        0.0,
+        0.0,
+        -1.0,
+        0.0,
+        //
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+    )
+}

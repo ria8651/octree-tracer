@@ -24,7 +24,7 @@ impl App {
             error_string,
         };
 
-        let mut octree = Octree::new(0b11000101);
+        let octree = Octree::new(0b11000101);
 
         let mut defualt_octree = Octree::new(0);
         defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);

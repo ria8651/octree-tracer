@@ -227,7 +227,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var output_colour = vec3<f32>(0.0, 0.0, 0.0);
     let clip_space = get_clip_space(in.frag_pos, u.dimensions.xy);
 
-    let pos = u.camera_inverse * vec4<f32>(clip_space.x, clip_space.y, 0.0, 1.0);
+    let pos = u.camera_inverse * vec4<f32>(0.0, 0.0, 0.0, 1.0);
     let dir = u.camera_inverse * vec4<f32>(clip_space.x, clip_space.y, 1.0, 1.0);
     let pos = pos.xyz / pos.w;
     let dir = normalize(dir.xyz / dir.w - pos);

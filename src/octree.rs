@@ -118,6 +118,7 @@ impl Octree {
         }
     }
 
+    #[allow(dead_code)]
     pub fn fill_voxel_positions(&mut self) {
         self.voxel_positions = vec![Vector3::zero(); self.voxels.len()];
 
@@ -159,6 +160,7 @@ impl Octree {
         (&self.nodes, &self.voxels)
     }
 
+    #[allow(dead_code)]
     pub fn node_len(&self) -> usize {
         self.nodes.len()
     }

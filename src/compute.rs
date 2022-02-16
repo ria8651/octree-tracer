@@ -111,13 +111,13 @@ impl Compute {
         }
     }
 
-    pub fn subdivide_octree(pos: Vector3<f32>, octree: &mut Octree, cpu_octree: &mut Octree) {
+    pub fn subdivide_octree(pos: Vector3<f32>, octree: &mut Octree, _: &mut Octree) {
         if pos == Vector3::zero() {
             panic!("Tried to subdivide deleted node!");
         }
         // println!("subdivide: {:?}", pos);
 
-        let (voxel_index, voxel_depth, voxel_pos) = octree.get_node(pos);
+        let (voxel_index, voxel_depth, _) = octree.get_node(pos);
         if voxel_depth < 20 {
             octree.subdivide(voxel_index, 0b10001001, true, voxel_depth + 1);
         }
