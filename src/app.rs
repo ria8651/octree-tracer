@@ -3,6 +3,7 @@ use winit::window::Window;
 
 pub struct App {
     pub octree: Octree,
+    pub cpu_octree: Octree,
     pub render: Render,
     pub compute: Compute,
     pub input: Input,
@@ -19,31 +20,21 @@ impl App {
         let settings = Settings {
             octree_depth,
             fov: 90.0,
-            sensitivity: 0.006,
+            sensitivity: 0.00005,
             error_string,
         };
+
+        let mut octree = Octree::new(0b11000101);
 
         let mut defualt_octree = Octree::new(0);
         defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
         defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
         defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
 
-        let mut octree = match load_file(octree_path, octree_depth) {
-            Ok(octree) => octree,
+        let cpu_octree = match load_file(octree_path, octree_depth) {
+            Ok(cpu_octree) => cpu_octree,
             Err(_) => defualt_octree,
         };
-
-        octree.fill_voxel_positions();
-
-        // octree.subdivide(1, 0b00100101, true, 2);
-
-        // println!("Voxel positions:");
-        // for voxel_pos in &octree.voxels {
-        //     println!("{:?}", *voxel_pos);
-        // }
-
-        // assert_eq!(octree.voxel_positions.len(), octree.voxels.len());
-        // panic!();
 
         // So we can load a bigger octree later
         // octree.expand(256000000);
@@ -51,8 +42,9 @@ impl App {
         let render = Render::new(window, &octree).await;
         let compute = Compute::new(&render);
 
-        let mut app = Self {
+        let app = Self {
             octree,
+            cpu_octree,
             render,
             compute,
             input,
@@ -60,10 +52,16 @@ impl App {
             settings,
         };
 
-        app.render.update(0.0, &mut app.settings, &app.character);
-        app.render.render(&window).unwrap();
+        // octree.subdivide(0, 0b0100101, true, 2);
 
-        app.compute.update(&app.octree, &app.render);
+        // app.render.update(0.0, &mut app.settings, &app.character);
+        // app.render.render(&window).unwrap();
+
+        // app.compute
+        //     .update(&app.render, &mut app.octree, &mut app.cpu_octree);
+        // app.update(0.0);
+        // println!("{:?}", app.octree);
+        // panic!();
 
         app
     }
@@ -73,7 +71,7 @@ impl App {
             self.input.right as u32 as f32 - self.input.left as u32 as f32,
             self.input.up as u32 as f32 - self.input.down as u32 as f32,
             self.input.forward as u32 as f32 - self.input.backward as u32 as f32,
-        ) * 0.01;
+        ) * std::f32::consts::E.powf(self.character.speed);
 
         let forward: Vector3<f32> = self.character.look.normalize();
         let right = forward.cross(Vector3::unit_y()).normalize();
@@ -82,7 +80,7 @@ impl App {
         self.character.pos += forward * input.z + right * input.x + up * input.y;
 
         if self.character.cursour_grabbed {
-            let delta = self.settings.sensitivity * self.input.mouse_delta;
+            let delta = self.settings.sensitivity * self.input.mouse_delta * self.settings.fov;
             let rotation = Quaternion::from_axis_angle(right, Rad(-delta.y))
                 * Quaternion::from_axis_angle(Vector3::unit_y(), Rad(-delta.x));
 
@@ -148,7 +146,7 @@ impl App {
                     .logarithmic(true),
             );
             ui.add(
-                egui::Slider::new(&mut self.settings.sensitivity, 0.00001..=0.01)
+                egui::Slider::new(&mut self.settings.sensitivity, 0.00001..=0.0001)
                     .prefix("Sensitivity")
                     .logarithmic(true),
             );
@@ -179,7 +177,18 @@ impl App {
 
         self.render
             .update(time, &mut self.settings, &self.character);
-        self.compute.update(&self.octree, &self.render);
+        self.compute
+            .update(&self.render, &mut self.octree, &mut self.cpu_octree);
+
+        // Write octree to gpu
+        let (nodes, voxels) = self.octree.raw_data();
+
+        self.render
+            .queue
+            .write_buffer(&self.render.node_buffer, 0, bytemuck::cast_slice(&nodes));
+        self.render
+            .queue
+            .write_buffer(&self.render.voxel_buffer, 0, bytemuck::cast_slice(&voxels));
     }
 
     pub fn input(&mut self, window: &Window, event: &Event<()>) {
@@ -229,6 +238,13 @@ impl App {
             Event::DeviceEvent { event, .. } => match event {
                 DeviceEvent::MouseMotion { delta } => {
                     self.input.mouse_delta = Vector2::new(delta.0 as f32, delta.1 as f32);
+                }
+                DeviceEvent::MouseWheel {
+                    delta: winit::event::MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition { y, ..}),
+                    ..
+                } => {
+                    println!("{:?}", *y);
+                    self.character.speed += *y as f32 / 200.0;
                 }
                 _ => {}
             },

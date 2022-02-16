@@ -243,7 +243,8 @@ impl Render {
             character.pos + character.look,
             Vector3::unit_y(),
         );
-        let proj = perspective(Deg(settings.fov), dimensions[0] / dimensions[1], 0.001, 1.0);
+        // let proj = perspective(Deg(settings.fov), dimensions[0] / dimensions[1], 0.00001, 0.0001);
+        let proj = create_view_matrix()
         let camera = proj * view;
         let camera_inverse = camera.invert().unwrap();
 

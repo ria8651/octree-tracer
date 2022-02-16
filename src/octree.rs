@@ -201,8 +201,10 @@ impl std::fmt::Debug for Octree {
                 //     stringgy =
                 //         format!("{}, {}, {}", (col >> 16) as u8, (col >> 8) as u8, col as u8);
                 // }
+                
+                let pos = self.voxel_positions[voxel_index as usize];
 
-                write!(f, "  Leaf: {}\n", voxel_index)?;
+                write!(f, "  Leaf: {} ({}, {}, {})\n", voxel_index, pos.x, pos.y, pos.z)?;
             } else {
                 write!(f, "  Node: {}\n", value)?;
             }
@@ -213,10 +215,10 @@ impl std::fmt::Debug for Octree {
             }
         }
 
-        write!(f, "\nVoxels ({}):\n", self.voxels.len())?;
-        for value in &self.voxels {
-            write!(f, "  Voxel: {}\n", value)?;
-        }
+        // write!(f, "\nVoxels ({}):\n", self.voxels.len())?;
+        // for value in &self.voxels {
+        //     write!(f, "  Voxel: {}\n", value)?;
+        // }
 
         Ok(())
     }

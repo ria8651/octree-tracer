@@ -65,7 +65,7 @@ impl Compute {
         }
     }
 
-    pub fn update(&self, octree: &Octree, render: &Render) {
+    pub fn update(&self, render: &Render, octree: &mut Octree, cpu_octree: &mut Octree) {
         let iterations = octree.voxel_len() as u32;
         let work_group_invocations = (iterations as f32 / WORK_GROUP_SIZE as f32).ceil() as u32;
 
@@ -93,15 +93,14 @@ impl Compute {
         if let Ok(()) = pollster::block_on(feedback_future) {
             {
                 let mut data = feedback_slice.get_mapped_range_mut();
-                let result: &mut [u32] = unsafe {
-                    reinterpret::reinterpret_mut_slice(&mut data)
-                };
+                let result: &mut [u32] = unsafe { reinterpret::reinterpret_mut_slice(&mut data) };
 
                 let len = result[0] as usize;
                 result[0] = 0;
                 for i in 1..=len {
+                    println!("subdivide: {:?}", result[i]);
                     let pos = octree.voxel_positions[result[i] as usize];
-                    println!("{:?}", pos);
+                    Compute::subdivide_octree(pos, octree, cpu_octree);
                     result[i] = 0;
                 }
             }
@@ -110,5 +109,18 @@ impl Compute {
         } else {
             panic!("failed to run compute on gpu!")
         }
+    }
+
+    pub fn subdivide_octree(pos: Vector3<f32>, octree: &mut Octree, cpu_octree: &mut Octree) {
+        if pos == Vector3::zero() {
+            panic!("Tried to subdivide deleted node!");
+        }
+        // println!("subdivide: {:?}", pos);
+
+        let (voxel_index, voxel_depth, voxel_pos) = octree.get_node(pos);
+        if voxel_depth < 20 {
+            octree.subdivide(voxel_index, 0b10001001, true, voxel_depth + 1);
+        }
+        // let (cpu_octree_node, cpu_octree_depth, cpu_octree_pos) = app.cpu_octree.get_node(pos);
     }
 }

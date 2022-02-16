@@ -147,6 +147,7 @@ pub struct Character {
     pos: Point3<f32>,
     look: Vector3<f32>,
     cursour_grabbed: bool,
+    speed: f32,
 }
 
 impl Character {
@@ -155,6 +156,56 @@ impl Character {
             pos: Point3::new(0.0, 0.0, -1.5),
             look: -Vector3::new(0.0, 0.0, -1.5),
             cursour_grabbed: true,
+            speed: -5.0,
         }
     }
 }
+
+// fn create_view_matrix(fov: f32, aspect: f32) -> Matrix4<f32> {
+
+//     let rotation = Matrix4::new(
+//         right.x,
+//         right.y,
+//         right.z,
+//         0.0,
+//         //
+//         up.x,
+//         up.y,
+//         up.z,
+//         0.0,
+//         //
+//         forward.x,
+//         forward.y,
+//         forward.z,
+//         0.0,
+//         //
+//         0.0,
+//         0.0,
+//         0.0,
+//         1.0,
+//     );
+    
+//     let translation = Matrix4::new (
+//         1.0,
+//         0.0,
+//         0.0,
+//         -pos.x,
+//         //
+//         0.0,
+//         1.0,
+//         0.0,
+//         -pos.y,
+//         //
+//         0.0,
+//         0.0,
+//         1.0,
+//         -pos.z,
+//         //
+//         0.0,
+//         0.0,
+//         0.0,
+//         1.0,
+//     );
+
+//     rotation * translation
+// }
