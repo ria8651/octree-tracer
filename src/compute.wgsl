@@ -11,9 +11,9 @@ struct AtomicU32s {
 [[group(1), binding(0)]]
 var<storage, read_write> f: AtomicU32s;
 
-[[stage(compute), workgroup_size(1)]]
+[[stage(compute), workgroup_size(128)]]
 fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
-    if (v.data[global_id.x] > 6u) {
+    if (v.data[global_id.x] > 8u) {
         let index = atomicAdd(&f.counter, 1u);
         f.data[index] = global_id.x;
     }

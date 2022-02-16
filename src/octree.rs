@@ -19,12 +19,17 @@ impl Octree {
     pub fn new(mask: u8) -> Self {
         let nodes = Vec::new();
         let mut voxels = Vec::new();
-        let voxel_positions = Vec::new();
+        let mut voxel_positions = Vec::new();
         // le empty voxel
         voxels.push(0);
+        voxel_positions.push(Vector3::zero());
 
-        let mut octree = Self { nodes, voxels, voxel_positions };
-        octree.add_voxels(mask, true, Vector3::new(0.0, 0.0, 0.0), 1);
+        let mut octree = Self {
+            nodes,
+            voxels,
+            voxel_positions,
+        };
+        octree.add_voxels(mask, true, Vector3::zero(), 1);
         octree
     }
 
@@ -34,7 +39,13 @@ impl Octree {
         voxel_index
     }
 
-    pub fn add_voxels(&mut self, mask: u8, bottom_level: bool, voxel_pos: Vector3<f32>, depth: u32) {
+    pub fn add_voxels(
+        &mut self,
+        mask: u8,
+        bottom_level: bool,
+        voxel_pos: Vector3<f32>,
+        depth: u32,
+    ) {
         // Add 8 new voxels
         for i in 0..8 {
             if mask >> i & 1 != 0 {
@@ -57,12 +68,12 @@ impl Octree {
             panic!("Node already subdivided!");
         }
 
-        let mut voxel_pos = Vector3::new(0.0, 0.0, 0.0);
+        let mut voxel_pos = Vector3::zero();
         if bottom_level == true {
             let voxel_index = self.nodes[node] - VOXEL_OFFSET;
             self.voxels[voxel_index as usize] = 0;
             voxel_pos = self.voxel_positions[voxel_index as usize];
-            self.voxel_positions[voxel_index as usize] = Vector3::new(0.0, 0.0, 0.0);
+            self.voxel_positions[voxel_index as usize] = Vector3::zero();
         }
 
         // Turn voxel into node
@@ -85,7 +96,7 @@ impl Octree {
 
     pub fn get_node(&self, pos: Vector3<f32>) -> (usize, u32, Vector3<f32>) {
         let mut node_index = 0;
-        let mut node_pos = Vector3::new(0.0, 0.0, 0.0);
+        let mut node_pos = Vector3::zero();
         let mut depth = 0;
         loop {
             depth += 1;
@@ -135,11 +146,13 @@ impl Octree {
         }
     }
 
-    pub fn expand(&mut self, size: usize) {
-        self.nodes
-            .extend(std::iter::repeat(0).take(size - self.nodes.len()));
-        self.voxels
-            .extend(std::iter::repeat(0).take(size - self.voxels.len()));
+    pub fn expanded(&self, size: usize) -> (Vec<u32>, Vec<u32>) {
+        let mut nodes = self.nodes.clone();
+        nodes.extend(std::iter::repeat(0).take(size - self.nodes.len()));
+        let mut voxels = self.voxels.clone();
+        voxels.extend(std::iter::repeat(0).take(size - self.voxels.len()));
+
+        (nodes, voxels)
     }
 
     pub fn raw_data(&self) -> (&Vec<u32>, &Vec<u32>) {

@@ -1,6 +1,7 @@
 use super::*;
 
 const MAX_SIBDIVISIONS: usize = 128000;
+const WORK_GROUP_SIZE: u32 = 128;
 
 pub struct Compute {
     compute_pipeline: wgpu::ComputePipeline,
@@ -66,6 +67,7 @@ impl Compute {
 
     pub fn update(&self, octree: &Octree, render: &Render) {
         let iterations = octree.voxel_len() as u32;
+        let work_group_invocations = (iterations as f32 / WORK_GROUP_SIZE as f32).ceil() as u32;
 
         let mut encoder = render
             .device
@@ -78,7 +80,7 @@ impl Compute {
             compute_pass.set_pipeline(&self.compute_pipeline);
             compute_pass.set_bind_group(0, &self.voxel_bind_group, &[]);
             compute_pass.set_bind_group(1, &self.feedback_bind_group, &[]);
-            compute_pass.dispatch(iterations, 1, 1);
+            compute_pass.dispatch(work_group_invocations, 1, 1);
         }
 
         render.queue.submit(Some(encoder.finish()));
@@ -98,7 +100,8 @@ impl Compute {
                 let len = result[0] as usize;
                 result[0] = 0;
                 for i in 1..=len {
-                    println!("i: {}", result[i]);
+                    let pos = octree.voxel_positions[result[i] as usize];
+                    println!("{:?}", pos);
                     result[i] = 0;
                 }
             }

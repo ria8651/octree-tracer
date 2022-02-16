@@ -80,7 +80,7 @@ impl Render {
                 | wgpu::BufferUsages::COPY_SRC,
         });
 
-        let (nodes, voxels) = octree.raw_data();
+        let (nodes, voxels) = octree.expanded(256000000);
 
         let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,

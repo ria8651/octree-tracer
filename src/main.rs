@@ -19,7 +19,7 @@ use render::*;
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
-    let octree_depth = 1;
+    let octree_depth = 10;
 
     env_logger::init();
     let event_loop = EventLoop::new();

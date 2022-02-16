@@ -24,9 +24,9 @@ impl App {
         };
 
         let mut defualt_octree = Octree::new(0);
-        // defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
-        // defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
-        // defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
+        defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
+        defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
+        defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
 
         let mut octree = match load_file(octree_path, octree_depth) {
             Ok(octree) => octree,
@@ -35,15 +35,15 @@ impl App {
 
         octree.fill_voxel_positions();
 
-        octree.subdivide(1, 0b00100101, true, 2);
+        // octree.subdivide(1, 0b00100101, true, 2);
 
-        println!("Voxel positions:");
-        for voxel_pos in &octree.voxel_positions {
-            println!("{:?}", *voxel_pos);
-        }
+        // println!("Voxel positions:");
+        // for voxel_pos in &octree.voxels {
+        //     println!("{:?}", *voxel_pos);
+        // }
 
-        assert_eq!(octree.voxel_positions.len(), octree.voxels.len());
-        panic!();
+        // assert_eq!(octree.voxel_positions.len(), octree.voxels.len());
+        // panic!();
 
         // So we can load a bigger octree later
         // octree.expand(256000000);
@@ -116,7 +116,10 @@ impl App {
                         self.settings.octree_depth,
                     ) {
                         Ok(octree) => {
-                            let (nodes, voxels) = octree.raw_data();
+                            self.octree = octree;
+
+                            let (nodes, voxels) = self.octree.raw_data();
+
                             self.render.queue.write_buffer(
                                 &self.render.node_buffer,
                                 0,
@@ -127,6 +130,7 @@ impl App {
                                 0,
                                 bytemuck::cast_slice(&voxels),
                             );
+
                             self.settings.error_string = "".to_string();
                         }
                         Err(e) => {
