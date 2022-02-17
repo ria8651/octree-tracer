@@ -22,4 +22,7 @@ egui_demo_lib = "0.16"
 native-dialog = "0.6"
 reinterpret = "0.2"
 
+[profile.release]
+debug = 1
+
 [package.metadata.bundle]

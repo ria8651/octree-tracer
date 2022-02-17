@@ -84,7 +84,7 @@ impl Octree {
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, value: u32, depth: u32) {
         loop {
-            let (node, node_depth, _) = self.get_node(pos);
+            let (node, node_depth, _) = self.get_node(pos, None);
             if depth == node_depth {
                 self.nodes[node] = self.create_voxel(value);
                 return;
@@ -94,7 +94,7 @@ impl Octree {
         }
     }
 
-    pub fn get_node(&self, pos: Vector3<f32>) -> (usize, u32, Vector3<f32>) {
+    pub fn get_node(&self, pos: Vector3<f32>, max_depth: Option<u32>) -> (usize, u32, Vector3<f32>) {
         let mut node_index = 0;
         let mut node_pos = Vector3::zero();
         let mut depth = 0;
@@ -110,7 +110,7 @@ impl Octree {
 
             node_pos += Octree::pos_offset(child_index, depth);
 
-            if self.nodes[node_index + child_index] >= VOXEL_OFFSET {
+            if self.nodes[node_index + child_index] >= VOXEL_OFFSET || depth == max_depth.unwrap_or(u32::MAX) {
                 return (node_index + child_index, depth, node_pos);
             }
 
@@ -145,6 +145,16 @@ impl Octree {
                 }
             }
         }
+    }
+
+    pub fn get_node_mask(&self, node: usize) -> u8 {
+        let mut mask = 0;
+        for i in 0..8 {
+            if self.nodes[node + i] != VOXEL_OFFSET {
+                mask |= 1 << i;
+            }
+        }
+        mask
     }
 
     pub fn expanded(&self, size: usize) -> (Vec<u32>, Vec<u32>) {

@@ -19,7 +19,7 @@ use render::*;
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
-    let octree_depth = 10;
+    let octree_depth = 12;
 
     env_logger::init();
     let event_loop = EventLoop::new();
@@ -122,6 +122,7 @@ pub struct Settings {
     fov: f32,
     sensitivity: f32,
     error_string: String,
+    pause_compute: bool,
 }
 
 // For bool
@@ -161,10 +162,10 @@ impl Character {
     }
 }
 
-fn create_proj_matrix(fov: f32, _: f32) -> Matrix4<f32> {
+fn create_proj_matrix(fov: f32, aspect: f32) -> Matrix4<f32> {
     let s = 1.0 / ((fov / 2.0) * (std::f32::consts::PI / 180.0)).tan();
     Matrix4::new(
-        s,
+        aspect * s,
         0.0,
         0.0,
         0.0,

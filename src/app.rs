@@ -22,9 +22,8 @@ impl App {
             fov: 90.0,
             sensitivity: 0.00005,
             error_string,
+            pause_compute: false,
         };
-
-        let octree = Octree::new(0b10110111);
 
         let mut defualt_octree = Octree::new(0);
         defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
@@ -35,6 +34,9 @@ impl App {
             Ok(cpu_octree) => cpu_octree,
             Err(_) => defualt_octree,
         };
+
+        let mask = cpu_octree.get_node_mask(0);
+        let octree = Octree::new(mask);
 
         // So we can load a bigger octree later
         // octree.expand(256000000);
@@ -171,14 +173,18 @@ impl App {
 
             ui.checkbox(&mut self.render.uniforms.show_steps, "Show ray steps");
             ui.checkbox(&mut self.render.uniforms.shadows, "Shadows");
+            ui.checkbox(&mut self.settings.pause_compute, "Pause compute");
             ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.0..=1.0).text("Misc"));
             ui.checkbox(&mut self.render.uniforms.misc_bool, "Misc");
         });
 
         self.render
             .update(time, &mut self.settings, &self.character);
-        self.compute
-            .update(&self.render, &mut self.octree, &mut self.cpu_octree);
+
+        if !self.settings.pause_compute {
+            self.compute
+                .update(&self.render, &mut self.octree, &mut self.cpu_octree);
+        }
 
         // Write octree to gpu
         let (nodes, voxels) = self.octree.raw_data();
@@ -240,7 +246,11 @@ impl App {
                     self.input.mouse_delta = Vector2::new(delta.0 as f32, delta.1 as f32);
                 }
                 DeviceEvent::MouseWheel {
-                    delta: winit::event::MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition { y, ..}),
+                    delta:
+                        winit::event::MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition {
+                            y,
+                            ..
+                        }),
                     ..
                 } => {
                     self.character.speed += *y as f32 / 200.0;

@@ -195,7 +195,6 @@ fn octree_ray(r: Ray) -> HitInfo {
     loop {
         voxel = get_voxel(voxel_pos);
         if (voxel.value > 0u) {
-            v.data[voxel.value] = v.data[voxel.value] + 1u;
             break;
         }
 
@@ -239,6 +238,8 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
         output_colour = vec3<f32>(f32(hit.steps) / 64.0);
     } else {
         if (hit.hit) {
+            v.data[hit.value] = v.data[hit.value] + 1u;
+
             let sun_dir = normalize(u.sun_dir.xyz);
 
             let ambient = 0.3;

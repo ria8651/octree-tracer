@@ -68,7 +68,8 @@ impl Compute {
 
     pub fn update(&self, render: &Render, octree: &mut Octree, cpu_octree: &mut Octree) {
         let iterations = octree.voxel_len() as u32;
-        let dispatch_size_x = (iterations as f32 / WORK_GROUP_SIZE as f32 / DISPATCH_SIZE_Y as f32).ceil() as u32;
+        let dispatch_size_x =
+            (iterations as f32 / WORK_GROUP_SIZE as f32 / DISPATCH_SIZE_Y as f32).ceil() as u32;
 
         let mut encoder = render
             .device
@@ -100,10 +101,12 @@ impl Compute {
                 result[0] = 0;
 
                 println!("Voxel len: {}", iterations);
+                println!("Node len: {}", octree.node_len());
 
                 for i in 1..=len {
                     // println!("subdivide: {:?}", result[i]);
                     let pos = octree.voxel_positions[result[i] as usize];
+
                     Compute::subdivide_octree(pos, octree, cpu_octree);
                     result[i] = 0;
                 }
@@ -115,15 +118,23 @@ impl Compute {
         }
     }
 
-    pub fn subdivide_octree(pos: Vector3<f32>, octree: &mut Octree, _: &mut Octree) {
+    pub fn subdivide_octree(pos: Vector3<f32>, octree: &mut Octree, cpu_octree: &mut Octree) {
         if pos == Vector3::zero() {
             panic!("Tried to subdivide deleted node!");
         }
 
-        let (voxel_index, voxel_depth, _) = octree.get_node(pos);
-        if voxel_depth < 20 {
-            octree.subdivide(voxel_index, 0b10110111, true, voxel_depth + 1);
+        let (voxel_index, voxel_depth, _) = octree.get_node(pos, None);
+        // if voxel_depth < 20 {
+        //     octree.subdivide(voxel_index, 0b10110111, true, voxel_depth + 1);
+        // }
+
+        let (cpu_octree_node, _, _) =
+            cpu_octree.get_node(pos, Some(voxel_depth));
+
+        let tnipt = cpu_octree.nodes[cpu_octree_node];
+        if tnipt < octree::VOXEL_OFFSET {
+            let mask = cpu_octree.get_node_mask(tnipt as usize);
+            octree.subdivide(voxel_index, mask, true, voxel_depth + 1);
         }
-        // let (cpu_octree_node, cpu_octree_depth, cpu_octree_pos) = app.cpu_octree.get_node(pos);
     }
 }
