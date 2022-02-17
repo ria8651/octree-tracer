@@ -1,13 +1,13 @@
 use super::*;
 
-const MAX_SIBDIVISIONS: usize = 512000;
+pub const MAX_SIBDIVISIONS: usize = 512000;
 const WORK_GROUP_SIZE: u32 = 128; // 32 * 32 * 16
 const DISPATCH_SIZE_Y: u32 = 4096;
 
 pub struct Compute {
     compute_pipeline: wgpu::ComputePipeline,
     voxel_bind_group: wgpu::BindGroup,
-    feedback_buffer: wgpu::Buffer,
+    pub feedback_buffer: wgpu::Buffer,
     feedback_bind_group: wgpu::BindGroup,
 }
 
@@ -37,7 +37,7 @@ impl Compute {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: None,
                 contents: bytemuck::cast_slice(&[0; MAX_SIBDIVISIONS]),
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             });
 
         let voxel_bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {

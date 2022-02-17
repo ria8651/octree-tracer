@@ -4,6 +4,7 @@ struct Uniforms {
     dimensions: vec4<f32>;
     sun_dir: vec4<f32>;
     show_steps: bool;
+    show_hits: bool;
     shadows: bool;
     misc_value: f32;
     misc_bool: bool;
@@ -233,29 +234,34 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    // output_colour = vec3<f32>(f32(v.data[hit.value]) / 10.0);
-    if (u.show_steps) {
-        output_colour = vec3<f32>(f32(hit.steps) / 64.0);
+    if (hit.hit) {
+        v.data[hit.value] = v.data[hit.value] + 1u;
+    }
+
+    if (u.show_hits) {
+        output_colour = vec3<f32>(f32(v.data[hit.value]) / 10.0);
     } else {
-        if (hit.hit) {
-            v.data[hit.value] = v.data[hit.value] + 1u;
-
-            let sun_dir = normalize(u.sun_dir.xyz);
-
-            let ambient = 0.3;
-            var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
-
-            if (u.shadows) {
-                let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir));
-                if (shadow_hit.hit) {
-                    diffuse = 0.0;
-                }
-            }
-
-            let colour = vec3<f32>(0.0, 1.0, 0.0);
-            output_colour = (ambient + diffuse) * colour;
+        if (u.show_steps) {
+            output_colour = vec3<f32>(f32(hit.steps) / 64.0);
         } else {
-            output_colour =  vec3<f32>(0.2);
+            if (hit.hit) {
+                let sun_dir = normalize(u.sun_dir.xyz);
+
+                let ambient = 0.3;
+                var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
+
+                if (u.shadows) {
+                    let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir));
+                    if (shadow_hit.hit) {
+                        diffuse = 0.0;
+                    }
+                }
+
+                let colour = vec3<f32>(0.0, 1.0, 0.0);
+                output_colour = (ambient + diffuse) * colour;
+            } else {
+                output_colour =  vec3<f32>(0.2);
+            }
         }
     }
 

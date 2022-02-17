@@ -14,7 +14,7 @@ var<storage, read_write> f: AtomicU32s;
 [[stage(compute), workgroup_size(128)]]
 fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
     let id = global_id.x * 4096u + global_id.y;
-    if (v.data[id] > 4u) {
+    if (v.data[id] > 2u) {
         let index = atomicAdd(&f.counter, 1u);
         f.data[index] = id;
     }

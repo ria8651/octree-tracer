@@ -38,9 +38,6 @@ impl App {
         let mask = cpu_octree.get_node_mask(0);
         let octree = Octree::new(mask);
 
-        // So we can load a bigger octree later
-        // octree.expand(256000000);
-
         let render = Render::new(window, &octree).await;
         let compute = Compute::new(&render);
 
@@ -115,8 +112,12 @@ impl App {
                         path.into_os_string().into_string().unwrap(),
                         self.settings.octree_depth,
                     ) {
-                        Ok(octree) => {
-                            self.octree = octree;
+                        Ok(cpu_octree) => {
+                            self.cpu_octree = cpu_octree;
+
+                            // Reset octree
+                            let mask = self.cpu_octree.get_node_mask(0);
+                            self.octree = Octree::new(mask);
 
                             let (nodes, voxels) = self.octree.raw_data();
 
@@ -129,6 +130,11 @@ impl App {
                                 &self.render.voxel_buffer,
                                 0,
                                 bytemuck::cast_slice(&voxels),
+                            );
+                            self.render.queue.write_buffer(
+                                &self.compute.feedback_buffer,
+                                0,
+                                bytemuck::cast_slice(&[0; compute::MAX_SIBDIVISIONS]),
                             );
 
                             self.settings.error_string = "".to_string();
@@ -172,6 +178,7 @@ impl App {
             });
 
             ui.checkbox(&mut self.render.uniforms.show_steps, "Show ray steps");
+            ui.checkbox(&mut self.render.uniforms.show_hits, "Show ray hits");
             ui.checkbox(&mut self.render.uniforms.shadows, "Shadows");
             ui.checkbox(&mut self.settings.pause_compute, "Pause compute");
             ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.0..=1.0).text("Misc"));

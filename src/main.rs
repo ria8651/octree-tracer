@@ -103,6 +103,14 @@ impl Input {
     }
 }
 
+pub struct Settings {
+    octree_depth: u32,
+    fov: f32,
+    sensitivity: f32,
+    error_string: String,
+    pause_compute: bool,
+}
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Zeroable)]
 pub struct Uniforms {
@@ -111,18 +119,11 @@ pub struct Uniforms {
     dimensions: [f32; 4],
     sun_dir: [f32; 4],
     show_steps: bool,
+    show_hits: bool,
     shadows: bool,
     misc_value: f32,
     misc_bool: bool,
     junk: [u32; 8],
-}
-
-pub struct Settings {
-    octree_depth: u32,
-    fov: f32,
-    sensitivity: f32,
-    error_string: String,
-    pause_compute: bool,
 }
 
 // For bool
@@ -136,6 +137,7 @@ impl Uniforms {
             dimensions: [0.0, 0.0, 0.0, 0.0],
             sun_dir: [-1.7, -1.0, 0.8, 0.0],
             show_steps: false,
+            show_hits: false,
             shadows: true,
             misc_value: 0.0,
             misc_bool: false,
