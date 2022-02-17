@@ -51,7 +51,9 @@ impl App {
             settings,
         };
 
-        // octree.subdivide(0, 0b0100101, true, 2);
+        // app.octree.subdivide(0, 0b0100101, true, 2);
+        // app.octree.unsubdivide(0);
+        // println!("{:?}", app.octree);
 
         // app.render.update(0.0, &mut app.settings, &app.character);
         // app.render.render(&window).unwrap();

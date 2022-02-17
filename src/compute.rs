@@ -2,13 +2,14 @@ use super::*;
 
 pub const MAX_SIBDIVISIONS: usize = 512000;
 const WORK_GROUP_SIZE: u32 = 128; // 32 * 32 * 16
-const DISPATCH_SIZE_Y: u32 = 4096;
+const DISPATCH_SIZE_Y: u32 = 1024;
 
 pub struct Compute {
     compute_pipeline: wgpu::ComputePipeline,
-    voxel_bind_group: wgpu::BindGroup,
     pub feedback_buffer: wgpu::Buffer,
-    feedback_bind_group: wgpu::BindGroup,
+    compute_bind_group: wgpu::BindGroup,
+    // node_bind_group: wgpu::BindGroup,
+    // feedback_bind_group: wgpu::BindGroup,
 }
 
 impl Compute {
@@ -37,32 +38,34 @@ impl Compute {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: None,
                 contents: bytemuck::cast_slice(&[0; MAX_SIBDIVISIONS]),
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                usage: wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::MAP_READ,
             });
 
-        let voxel_bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let compute_bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &compute_pipeline.get_bind_group_layout(0),
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: render.voxel_buffer.as_entire_binding(),
-            }],
-        });
-
-        let feedback_bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &compute_pipeline.get_bind_group_layout(1),
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: feedback_buffer.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: render.voxel_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: render.node_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: feedback_buffer.as_entire_binding(),
+                },
+            ],
         });
 
         Self {
             compute_pipeline,
-            voxel_bind_group,
             feedback_buffer,
-            feedback_bind_group,
+            compute_bind_group,
         }
     }
 
@@ -80,8 +83,9 @@ impl Compute {
                 encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
 
             compute_pass.set_pipeline(&self.compute_pipeline);
-            compute_pass.set_bind_group(0, &self.voxel_bind_group, &[]);
-            compute_pass.set_bind_group(1, &self.feedback_bind_group, &[]);
+            compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
+            // compute_pass.set_bind_group(1, &self.node_bind_group, &[]);
+            // compute_pass.set_bind_group(2, &self.feedback_bind_group, &[]);
             compute_pass.dispatch(dispatch_size_x, DISPATCH_SIZE_Y, 1);
         }
 
@@ -104,10 +108,23 @@ impl Compute {
                 println!("Node len: {}", octree.node_len());
 
                 for i in 1..=len {
-                    // println!("subdivide: {:?}", result[i]);
-                    let pos = octree.voxel_positions[result[i] as usize];
+                    // Compute shader returns VOXEL_OFFSET + voxel_index for a subdivision and node_index for a unsubdivision
+                    if result[i] >= octree::VOXEL_OFFSET {
+                        println!("Subdivide: {}", result[i] - octree::VOXEL_OFFSET);
 
-                    Compute::subdivide_octree(pos, octree, cpu_octree);
+                        let voxel_index = result[i] - octree::VOXEL_OFFSET;
+                        let pos = octree.voxel_positions[voxel_index as usize];
+                        Compute::subdivide_octree(pos, octree, cpu_octree);
+                    } else {
+                        let tnipt = octree.nodes[result[i] as usize];
+                        if tnipt >= VOXEL_OFFSET {
+                            println!("Doubleup!");
+                        } else {
+                            println!("Unsubdivide: {}", result[i]);
+                            octree.unsubdivide(result[i] as usize);
+                        }
+                    }
+
                     result[i] = 0;
                 }
             }
@@ -120,16 +137,17 @@ impl Compute {
 
     pub fn subdivide_octree(pos: Vector3<f32>, octree: &mut Octree, cpu_octree: &mut Octree) {
         if pos == Vector3::zero() {
-            panic!("Tried to subdivide deleted node!");
+            // panic!("Tried to subdivide deleted node! (over read feedback buffer?)");
+            println!("Tried to subdivide deleted node! (over read feedback buffer?)");
+            return;
         }
 
-        let (voxel_index, voxel_depth, _) = octree.get_node(pos, None);
+        let (voxel_index, voxel_depth, _, _) = octree.get_node(pos, None);
         // if voxel_depth < 20 {
         //     octree.subdivide(voxel_index, 0b10110111, true, voxel_depth + 1);
         // }
 
-        let (cpu_octree_node, _, _) =
-            cpu_octree.get_node(pos, Some(voxel_depth));
+        let (cpu_octree_node, _, _, _) = cpu_octree.get_node(pos, Some(voxel_depth));
 
         let tnipt = cpu_octree.nodes[cpu_octree_node];
         if tnipt < octree::VOXEL_OFFSET {
@@ -137,4 +155,6 @@ impl Compute {
             octree.subdivide(voxel_index, mask, true, voxel_depth + 1);
         }
     }
+
+    // pub fn unsubdivide_oct
 }

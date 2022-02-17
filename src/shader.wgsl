@@ -234,12 +234,14 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    if (hit.hit) {
+    if (hit.hit && (v.data[hit.value] & u32(15)) < 15u) {
         v.data[hit.value] = v.data[hit.value] + 1u;
     }
 
+    // output_colour = vec3<f32>(rand(hit.pos.xy + hit.pos.z * 10.0));
     if (u.show_hits) {
-        output_colour = vec3<f32>(f32(v.data[hit.value]) / 10.0);
+        // output_colour = vec3<f32>(f32(v.data[hit.value] & u32(15)) / 10.0);
+        output_colour = vec3<f32>(f32(v.data[hit.value] >> 4u) / 100000.0);
     } else {
         if (u.show_steps) {
             output_colour = vec3<f32>(f32(hit.steps) / 64.0);
