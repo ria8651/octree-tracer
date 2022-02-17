@@ -8,13 +8,15 @@ use winit::{
 };
 
 mod app;
-mod compute;
+// mod compute;
 mod octree;
 mod render;
+// mod dynamic;
 use app::*;
-use compute::*;
+// use compute::*;
 use octree::*;
 use render::*;
+// use dynamic::*;
 
 fn main() {
     // Defualt file path that only works on the terminal

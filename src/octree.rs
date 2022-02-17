@@ -12,7 +12,6 @@ pub const VOXEL_OFFSET: u32 = u32::MAX / 2;
 /// ```
 pub struct Octree {
     pub nodes: Vec<u32>,
-    pub voxels: Vec<u32>,
     // stays on cpu
     pub voxel_positions: Vec<Vector3<f32>>,
 }
@@ -28,17 +27,10 @@ impl Octree {
 
         let mut octree = Self {
             nodes,
-            voxels,
             voxel_positions,
         };
         octree.add_voxels(mask, true, Vector3::zero(), 1, 0);
         octree
-    }
-
-    pub fn create_voxel(&mut self, parent: usize) -> u32 {
-        let voxel_index = VOXEL_OFFSET + self.voxels.len() as u32;
-        self.voxels.push((parent as u32) << 4);
-        voxel_index
     }
 
     pub fn add_voxels(
@@ -53,10 +45,9 @@ impl Octree {
         for i in 0..8 {
             if mask >> i & 1 != 0 {
                 if bottom_level {
-                    let voxel = self.create_voxel(parent);
-                    self.nodes.push(voxel);
-                    let new_pos = voxel_pos + Octree::pos_offset(i, depth);
-                    self.voxel_positions.push(new_pos);
+                    self.nodes.push(VOXEL_OFFSET + 1);
+                    // let new_pos = voxel_pos + Octree::pos_offset(i, depth);
+                    // self.voxel_positions.push(new_pos);
                 } else {
                     self.nodes.push(u32::MAX);
                 }
@@ -73,10 +64,7 @@ impl Octree {
 
         let mut voxel_pos = Vector3::zero();
         if bottom_level == true {
-            let voxel_index = self.nodes[node] - VOXEL_OFFSET;
-            self.voxels[voxel_index as usize] = 0;
-            voxel_pos = self.voxel_positions[voxel_index as usize];
-            self.voxel_positions[voxel_index as usize] = Vector3::zero();
+            
         }
 
         // Turn voxel into node
@@ -85,47 +73,41 @@ impl Octree {
         self.add_voxels(mask, bottom_level, voxel_pos, depth, node);
     }
 
-    pub fn unsubdivide(&mut self, node: usize) {
-        let tnipt = self.nodes[node];
-        if tnipt >= VOXEL_OFFSET {
-            panic!("Node not subdivided!");
-        }
+    // pub fn unsubdivide(&mut self, node: usize) {
+    //     let tnipt = self.nodes[node];
+    //     if tnipt >= VOXEL_OFFSET {
+    //         panic!("Node not subdivided!");
+    //     }
 
-        let mut lookup_pos = Vector3::zero();
-        for i in 0..8 {
-            let child_value = self.nodes[tnipt as usize + i];
-            if child_value < VOXEL_OFFSET {
-                // panic!("Tried to unsubdivide a node without voxel children!");
-                println!("Tried to unsubdivide a node without voxel children!");
-                return;
-            } else if child_value == VOXEL_OFFSET {
-                self.nodes[tnipt as usize + i] = 0;
-            } else if child_value > VOXEL_OFFSET {
-                self.nodes[tnipt as usize + i] = 0;
+    //     let mut lookup_pos = Vector3::zero();
+    //     for i in 0..8 {
+    //         let child_value = self.nodes[tnipt as usize + i];
+    //         if child_value < VOXEL_OFFSET {
+    //             // panic!("Tried to unsubdivide a node without voxel children!");
+    //             println!("Tried to unsubdivide a node without voxel children!");
+    //             return;
+    //         } else if child_value == VOXEL_OFFSET {
+    //             self.nodes[tnipt as usize + i] = 0;
+    //         } else if child_value > VOXEL_OFFSET {
+    //             self.nodes[tnipt as usize + i] = 0;
+    //         }
+    //     }
 
-                let voxel_index = child_value - VOXEL_OFFSET;
-                self.voxels[voxel_index as usize] = 0;
+    //     if lookup_pos == Vector3::zero() {
+    //         panic!("Tried to unsubdivide a node without voxel children!");
+    //     }
 
-                lookup_pos = self.voxel_positions[voxel_index as usize];
-                self.voxel_positions[voxel_index as usize] = Vector3::zero();
-            }
-        }
-
-        if lookup_pos == Vector3::zero() {
-            panic!("Tried to unsubdivide a node without voxel children!");
-        }
-
-        self.nodes[node] = VOXEL_OFFSET;
-        let (_, _, pos, parent) = self.get_node(lookup_pos, None);
-        self.nodes[node] = self.create_voxel(parent);
-        self.voxel_positions.push(pos);
-    }
+    //     self.nodes[node] = VOXEL_OFFSET;
+    //     let (_, _, pos, parent) = self.get_node(lookup_pos, None);
+    //     self.nodes[node] = self.create_voxel(parent);
+    //     // self.voxel_positions.push(pos);
+    // }
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, _: u32, depth: u32) {
         loop {
             let (node, node_depth, _, parent) = self.get_node(pos, None);
             if depth == node_depth {
-                self.nodes[node] = self.create_voxel(parent);
+                self.nodes[node] = VOXEL_OFFSET + 1;
                 return;
             } else {
                 self.subdivide(node, 0x00000000, true, node_depth);
@@ -165,34 +147,34 @@ impl Octree {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn fill_voxel_positions(&mut self) {
-        self.voxel_positions = vec![Vector3::zero(); self.voxels.len()];
+    // #[allow(dead_code)]
+    // pub fn fill_voxel_positions(&mut self) {
+        // self.voxel_positions = vec![Vector3::zero(); self.voxels.len()];
 
-        let mut stack = Vec::new();
-        for child_index in 0..8 {
-            let child_depth = 1;
-            let child_pos = Octree::pos_offset(child_index, child_depth);
-            stack.push((child_index, child_depth, child_pos));
-        }
-        while let Some((node_index, depth, pos)) = stack.pop() {
-            let tnipt = self.nodes[node_index as usize];
-            if tnipt >= VOXEL_OFFSET {
-                let voxel_index = tnipt - VOXEL_OFFSET;
-                if voxel_index == 0 {
-                    continue;
-                }
-                self.voxel_positions[voxel_index as usize] = pos;
-            } else {
-                for child_index in 0..8 {
-                    let new_index = tnipt as usize + child_index;
-                    let new_depth = depth + 1;
-                    let new_pos = pos + Octree::pos_offset(child_index, new_depth);
-                    stack.push((new_index, new_depth, new_pos));
-                }
-            }
-        }
-    }
+    //     let mut stack = Vec::new();
+    //     for child_index in 0..8 {
+    //         let child_depth = 1;
+    //         let child_pos = Octree::pos_offset(child_index, child_depth);
+    //         stack.push((child_index, child_depth, child_pos));
+    //     }
+    //     while let Some((node_index, depth, pos)) = stack.pop() {
+    //         let tnipt = self.nodes[node_index as usize];
+    //         if tnipt >= VOXEL_OFFSET {
+    //             let voxel_index = tnipt - VOXEL_OFFSET;
+    //             if voxel_index == 0 {
+    //                 continue;
+    //             }
+                // self.voxel_positions[voxel_index as usize] = pos;
+    //         } else {
+    //             for child_index in 0..8 {
+    //                 let new_index = tnipt as usize + child_index;
+    //                 let new_depth = depth + 1;
+    //                 let new_pos = pos + Octree::pos_offset(child_index, new_depth);
+    //                 stack.push((new_index, new_depth, new_pos));
+    //             }
+    //         }
+    //     }
+    // }
 
     pub fn get_node_mask(&self, node: usize) -> u8 {
         let mut mask = 0;
@@ -204,26 +186,20 @@ impl Octree {
         mask
     }
 
-    pub fn expanded(&self, size: usize) -> (Vec<u32>, Vec<u32>) {
+    pub fn expanded(&self, size: usize) -> Vec<u32> {
         let mut nodes = self.nodes.clone();
         nodes.extend(std::iter::repeat(0).take(size - self.nodes.len()));
-        let mut voxels = self.voxels.clone();
-        voxels.extend(std::iter::repeat(0).take(size - self.voxels.len()));
 
-        (nodes, voxels)
+        nodes
     }
 
-    pub fn raw_data(&self) -> (&Vec<u32>, &Vec<u32>) {
-        (&self.nodes, &self.voxels)
+    pub fn raw_data(&self) -> &Vec<u32> {
+        &self.nodes
     }
 
     #[allow(dead_code)]
     pub fn node_len(&self) -> usize {
         self.nodes.len()
-    }
-
-    pub fn voxel_len(&self) -> usize {
-        self.voxels.len()
     }
 
     fn pos_offset(child_index: usize, depth: u32) -> Vector3<f32> {
@@ -335,7 +311,7 @@ fn load_octree(data: &[u8], octree_depth: u32) -> Result<Octree, String> {
                 let child_mask = data[data_start + data_index];
                 octree.subdivide(node_index, child_mask, false, 0);
             } else {
-                octree.nodes[node_index] = octree.create_voxel(1);
+                octree.nodes[node_index] = VOXEL_OFFSET + 1;
             }
 
             data_index += 1;

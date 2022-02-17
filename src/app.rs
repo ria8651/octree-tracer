@@ -5,7 +5,7 @@ pub struct App {
     pub octree: Octree,
     pub cpu_octree: Octree,
     pub render: Render,
-    pub compute: Compute,
+    // pub compute: Compute,
     pub input: Input,
     pub character: Character,
     pub settings: Settings,
@@ -38,14 +38,14 @@ impl App {
         let mask = cpu_octree.get_node_mask(0);
         let octree = Octree::new(mask);
 
-        let render = Render::new(window, &octree).await;
-        let compute = Compute::new(&render);
+        let render = Render::new(window, &cpu_octree).await;
+        // let compute = Compute::new(&render);
 
         let app = Self {
             octree,
             cpu_octree,
             render,
-            compute,
+            // compute,
             input,
             character,
             settings,
@@ -121,23 +121,18 @@ impl App {
                             let mask = self.cpu_octree.get_node_mask(0);
                             self.octree = Octree::new(mask);
 
-                            let (nodes, voxels) = self.octree.raw_data();
+                            let nodes = self.octree.raw_data();
 
                             self.render.queue.write_buffer(
                                 &self.render.node_buffer,
                                 0,
                                 bytemuck::cast_slice(&nodes),
                             );
-                            self.render.queue.write_buffer(
-                                &self.render.voxel_buffer,
-                                0,
-                                bytemuck::cast_slice(&voxels),
-                            );
-                            self.render.queue.write_buffer(
-                                &self.compute.feedback_buffer,
-                                0,
-                                bytemuck::cast_slice(&[0; compute::MAX_SIBDIVISIONS]),
-                            );
+                            // self.render.queue.write_buffer(
+                            //     &self.compute.feedback_buffer,
+                            //     0,
+                            //     bytemuck::cast_slice(&[0; compute::MAX_SIBDIVISIONS]),
+                            // );
 
                             self.settings.error_string = "".to_string();
                         }
@@ -190,20 +185,19 @@ impl App {
         self.render
             .update(time, &mut self.settings, &self.character);
 
-        if !self.settings.pause_compute {
-            self.compute
-                .update(&self.render, &mut self.octree, &mut self.cpu_octree);
-        }
+        // if !self.settings.pause_compute {
+        //     dynamic::process_subdivision(&mut self.render, &mut self.octree, &mut self.cpu_octree);
+        // }
 
         // Write octree to gpu
-        let (nodes, voxels) = self.octree.raw_data();
+        // let (nodes, voxels) = self.octree.raw_data();
 
-        self.render
-            .queue
-            .write_buffer(&self.render.node_buffer, 0, bytemuck::cast_slice(&nodes));
-        self.render
-            .queue
-            .write_buffer(&self.render.voxel_buffer, 0, bytemuck::cast_slice(&voxels));
+        // self.render
+        //     .queue
+        //     .write_buffer(&self.render.node_buffer, 0, bytemuck::cast_slice(&nodes));
+        // self.render
+        //     .queue
+        //     .write_buffer(&self.render.voxel_buffer, 0, bytemuck::cast_slice(&voxels));
     }
 
     pub fn input(&mut self, window: &Window, event: &Event<()>) {

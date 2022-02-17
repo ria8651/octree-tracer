@@ -10,17 +10,22 @@ struct Uniforms {
     misc_bool: bool;
 };
 
-[[group(0), binding(0)]]
-var<uniform> u: Uniforms;
-
 struct U32s {
     data: [[stride(4)]] array<u32>;
 };
 
+// struct AtomicU32s {
+//     counter: atomic<u32>;
+//     data: [[stride(4)]] array<u32>;
+// };
+
+[[group(0), binding(0)]]
+var<uniform> u: Uniforms;
 [[group(0), binding(1)]]
 var<storage, read_write> n: U32s;
-[[group(0), binding(2)]]
-var<storage, read_write> v: U32s;
+// [[group(0), binding(3)]]
+// var<storage, read_write> s: AtomicU32s;
+
 
 let VOXEL_OFFSET: u32 = 2147483647u;
 
@@ -115,10 +120,6 @@ fn node(i: u32) -> u32 {
     return n.data[i];
 }
 
-fn voxel(i: u32) -> u32 {
-    return v.data[i];
-}
-
 struct Voxel {
     value: u32;
     pos: vec3<f32>;
@@ -195,7 +196,7 @@ fn octree_ray(r: Ray) -> HitInfo {
     var normal = trunc(pos * 1.000001);
     loop {
         voxel = get_voxel(voxel_pos);
-        if (voxel.value > 0u) {
+        if (voxel.value > VOXEL_OFFSET) {
             break;
         }
 
@@ -234,15 +235,22 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    if (hit.hit && (v.data[hit.value] & u32(15)) < 15u) {
-        v.data[hit.value] = v.data[hit.value] + 1u;
-    }
+    // let tnipt = node(hit.value) - VOXEL_OFFSET;
+    // if (hit.hit && (v.data[hit.value] & u32(15)) < 15u) {
+    //     let result = v.data[tnipt] + 1u;
+    //     v.data[tnipt] = result;
+
+    //     if (result > 4u) {
+    //         let index = atomicAdd(&s.counter, 1u);
+    //         s.data[index] = hit.value;
+    //     }
+    // }
 
     // output_colour = vec3<f32>(rand(hit.pos.xy + hit.pos.z * 10.0));
-    if (u.show_hits) {
-        // output_colour = vec3<f32>(f32(v.data[hit.value] & u32(15)) / 10.0);
-        output_colour = vec3<f32>(f32(v.data[hit.value] >> 4u) / 100000.0);
-    } else {
+    // if (u.show_hits) {
+    //     output_colour = vec3<f32>(f32(v.data[tnipt] & u32(15)) / 10.0);
+    //     // output_colour = vec3<f32>(f32(v.data[hit.value] >> 4u) / 100000.0);
+    // } else {
         if (u.show_steps) {
             output_colour = vec3<f32>(f32(hit.steps) / 64.0);
         } else {
@@ -265,7 +273,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
                 output_colour =  vec3<f32>(0.2);
             }
         }
-    }
+    // }
 
     // let ahha = u.dimensions.x * u.dimensions.y;
     // output_colour = vec3<f32>(f32(atomicAdd(&d.atomic_int, 1u)) / ahha);

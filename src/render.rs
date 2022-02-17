@@ -1,5 +1,7 @@
 use super::*;
 
+pub const MAX_SIBDIVISIONS_PER_FRAME: usize = 1024000;
+
 pub struct Render {
     pub surface: wgpu::Surface,
     pub device: wgpu::Device,
@@ -10,7 +12,7 @@ pub struct Render {
     pub uniforms: Uniforms,
     pub uniform_buffer: wgpu::Buffer,
     pub node_buffer: wgpu::Buffer,
-    pub voxel_buffer: wgpu::Buffer,
+    pub subdivision_buffer: wgpu::Buffer,
     pub main_bind_group: wgpu::BindGroup,
     pub previous_frame_time: Option<f64>,
     pub egui_platform: egui_winit_platform::Platform,
@@ -80,17 +82,20 @@ impl Render {
                 | wgpu::BufferUsages::COPY_SRC,
         });
 
-        let (nodes, voxels) = octree.expanded(256000000);
+        let nodes = octree.expanded(256000000);
 
         let node_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&nodes),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
-        let voxel_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+
+        let subdivision_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&voxels),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            contents: bytemuck::cast_slice(&[0u32; MAX_SIBDIVISIONS_PER_FRAME]),
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::MAP_READ,
         });
 
         let main_bind_group_layout =
@@ -143,7 +148,7 @@ impl Render {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: voxel_buffer.as_entire_binding(),
+                    resource: subdivision_buffer.as_entire_binding(),
                 },
             ],
             label: Some("uniform_bind_group"),
@@ -218,7 +223,7 @@ impl Render {
             uniforms,
             uniform_buffer,
             node_buffer,
-            voxel_buffer,
+            subdivision_buffer,
             main_bind_group,
             previous_frame_time,
             egui_platform,
