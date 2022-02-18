@@ -26,13 +26,15 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
             
             let pos = octree.positions[node_index];
             let (voxel_index, voxel_depth, _) = octree.find_voxel(pos, None);
+            let (cpu_index, _, _) = cpu_octree.find_voxel(pos, Some(voxel_depth));
+            
+            if voxel_depth < 20 {
+                octree.subdivide(node_index, cpu_octree.get_node_mask(cpu_index), voxel_depth + 1);
+            }
+            
 
             if voxel_index != node_index {
                 panic!("Incorrect voxel position!");
-            }
-
-            if voxel_depth < 20 {
-                octree.subdivide(node_index, 0b10110111, voxel_depth + 1);
             }
 
             result[i] = 0;

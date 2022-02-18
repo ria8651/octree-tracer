@@ -36,7 +36,7 @@ impl App {
         };
 
         let mask = cpu_octree.get_node_mask(0);
-        let octree = Octree::new(0b10110111);
+        let octree = Octree::new(mask);
 
         let render = Render::new(window, &octree).await;
         let compute = Compute::new(&render);
