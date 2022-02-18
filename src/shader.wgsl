@@ -4,6 +4,7 @@ struct Uniforms {
     dimensions: vec4<f32>;
     sun_dir: vec4<f32>;
     max_depth: u32;
+    pause_adaptive: bool;
     show_steps: bool;
     show_hits: bool;
     shadows: bool;
@@ -128,7 +129,7 @@ struct Voxel {
 };
 
 // Returns leaf containing position
-fn get_voxel(pos: vec3<f32>) -> Voxel {
+fn get_voxel(pos: vec3<f32>, primary: bool) -> Voxel {
     var node_index = 0u;
     var node_pos = vec3<f32>(0.0);
     var depth = 0u;
@@ -144,11 +145,19 @@ fn get_voxel(pos: vec3<f32>) -> Voxel {
 
         node_pos = node_pos + (vec3<f32>(p) * 2.0 - 1.0) / f32(1u << depth);
 
+        let p = node_index + child_index;
+
+        // Increment counters
+        let value = n.data[p];
+        if (primary && (value & 15u) < 15u && !u.pause_adaptive) {
+            n.data[p] = value + 1u;
+        }
+
         // tnipt: thing node is pointing to ;)
         // Lets be honest, you dont know how to name variables either
-        let tnipt = node(node_index + child_index);
+        let tnipt = node(p);
         if (tnipt >= VOXEL_OFFSET) {
-            return Voxel(node_index + child_index, node_pos, depth);
+            return Voxel(p, node_pos, depth);
         }
 
         node_index = tnipt;
@@ -172,7 +181,7 @@ struct HitInfo {
     depth: u32;
 };
 
-fn octree_ray(r: Ray) -> HitInfo {
+fn octree_ray(r: Ray, primary: bool) -> HitInfo {
     var pos = r.pos;
     let dir_mask = vec3<f32>(r.dir == vec3<f32>(0.0));
     var dir = r.dir + dir_mask * 0.000001;
@@ -197,10 +206,17 @@ fn octree_ray(r: Ray) -> HitInfo {
     var steps = 0u;
     var normal = trunc(pos * 1.000001);
     loop {
-        voxel = get_voxel(voxel_pos);
-        let tnipt = node(voxel.value) - VOXEL_OFFSET;
-        if (tnipt > 0u) {
-            break;
+        voxel = get_voxel(voxel_pos, primary);
+        if (!u.pause_adaptive || !u.show_hits) {
+            let tnipt = node(voxel.value) - VOXEL_OFFSET;
+            if (tnipt > 0u) {
+                break;
+            }
+        } else {
+            let value = n.data[voxel.value];
+            if ((value & 15u) > 0u) {
+                break;
+            }
         }
 
         let voxel_size = 2.0 / f32(1u << voxel.depth);
@@ -237,17 +253,18 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     let dir = normalize(dir.xyz / dir.w - pos);
     var ray = Ray(pos.xyz, dir.xyz);
 
-    let hit = octree_ray(ray);
-    if (hit.hit && (n.data[hit.value] & 15u) < 15u && hit.depth < u.max_depth - 1u) {
-        n.data[hit.value] = n.data[hit.value] + 1u;
-
-        if ((n.data[hit.value] & 15u) >= 2u) {
-            let index = atomicAdd(&s.counter, 1u);
-            s.data[index] = hit.value;
-        }
+    let hit = octree_ray(ray, true);
+    if (
+        hit.hit && 
+        (n.data[hit.value] & 15u) >= 4u && 
+        hit.depth < u.max_depth && 
+        node(hit.value) >= VOXEL_OFFSET
+    ) {
+        let index = atomicAdd(&s.counter, 1u);
+        s.data[index] = hit.value;
     }
 
-    // output_colour = vec3<f32>(rand(hit.pos.xy + hit.pos.z * 10.0));
+    // output_colour = vec3<f32>(hit.pos * 0.5 + 0.5);
     if (u.show_steps) {
         output_colour = vec3<f32>(f32(hit.steps) / 64.0);
     } else {
@@ -261,7 +278,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
                 var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
 
                 if (u.shadows) {
-                    let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir));
+                    let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir), false);
                     if (shadow_hit.hit) {
                         diffuse = 0.0;
                     }

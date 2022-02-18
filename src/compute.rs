@@ -1,6 +1,6 @@
 use super::*;
 
-pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 256000000;
+pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 1024000;
 const WORK_GROUP_SIZE: u32 = 16;
 const DISPATCH_SIZE_Y: u32 = 256;
 

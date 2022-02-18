@@ -22,7 +22,6 @@ impl App {
             fov: 90.0,
             sensitivity: 0.00005,
             error_string,
-            pause_compute: false,
         };
 
         let mut defualt_octree = Octree::new(0);
@@ -94,21 +93,23 @@ impl App {
             self.character.look = (rotation * self.character.look).normalize();
         }
 
-        self.compute.update(&mut self.render, &self.octree);
-
         self.render
             .update(time, &mut self.settings, &self.character);
-        if !self.settings.pause_compute {
+
+        if !self.render.uniforms.pause_adaptive {
+            self.compute.update(&mut self.render, &self.octree);
+
             process_subdivision(&mut self.render, &mut self.octree, &mut self.cpu_octree);
             process_unsubdivision(&mut self.compute, &mut self.render);
+            // Write octree to gpu
+            let nodes = self.octree.raw_data();
+
+            self.render.queue.write_buffer(
+                &self.render.node_buffer,
+                0,
+                bytemuck::cast_slice(&nodes),
+            );
         }
-
-        // Write octree to gpu
-        let nodes = self.octree.raw_data();
-
-        self.render
-            .queue
-            .write_buffer(&self.render.node_buffer, 0, bytemuck::cast_slice(&nodes));
     }
 
     pub fn gui(&mut self, time: f64) {
@@ -151,7 +152,6 @@ impl App {
                                 0,
                                 bytemuck::cast_slice(&nodes),
                             );
-                            
                             self.render.uniforms.max_depth = self.settings.octree_depth;
                             self.settings.error_string = "".to_string();
                         }
@@ -199,8 +199,8 @@ impl App {
             ui.checkbox(&mut self.render.uniforms.show_steps, "Show ray steps");
             ui.checkbox(&mut self.render.uniforms.show_hits, "Show ray hits");
             ui.checkbox(&mut self.render.uniforms.shadows, "Shadows");
-            ui.checkbox(&mut self.settings.pause_compute, "Pause compute");
-            ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.0..=1.0).text("Misc"));
+            ui.checkbox(&mut self.render.uniforms.pause_adaptive, "Pause adaptive");
+            ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.0..=3.0).text("Misc"));
             ui.checkbox(&mut self.render.uniforms.misc_bool, "Misc");
             ui.label(format!(
                 "Nodes: {:.2} million",

@@ -11,10 +11,12 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
         let result: &mut [u32] = unsafe { reinterpret::reinterpret_mut_slice(&mut data) };
 
         // Reset atomic counter
-        let len = result[0] as usize;
+        let len = (result[0] as usize).min(MAX_SIBDIVISIONS_PER_FRAME - 1);
         result[0] = 0;
 
-        println!("Processing {} subdivisions", len);
+        if len > 0 {
+            println!("Processing {} subdivisions", len);
+        }
         for i in 1..=len {
             let node_index = result[i] as usize;
 

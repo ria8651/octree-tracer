@@ -110,7 +110,6 @@ pub struct Settings {
     fov: f32,
     sensitivity: f32,
     error_string: String,
-    pause_compute: bool,
 }
 
 #[repr(C)]
@@ -121,6 +120,7 @@ pub struct Uniforms {
     dimensions: [f32; 4],
     sun_dir: [f32; 4],
     max_depth: u32,
+    pause_adaptive: bool,
     show_steps: bool,
     show_hits: bool,
     shadows: bool,
@@ -140,6 +140,7 @@ impl Uniforms {
             dimensions: [0.0, 0.0, 0.0, 0.0],
             sun_dir: [-1.7, -1.0, 0.8, 0.0],
             max_depth,
+            pause_adaptive: false,
             show_steps: false,
             show_hits: false,
             shadows: true,
