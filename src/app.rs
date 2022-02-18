@@ -185,22 +185,18 @@ impl App {
         self.render
             .update(time, &mut self.settings, &self.character);
 
-        // self.compute.update(&mut self.render, &mut self.octree, &mut self.cpu_octree);
-        for i in 0..self.octree.node_len() {
-            self.octree.nodes[i] = self.octree.nodes[i] & !15;
-        }
-
+        self.compute.update(&mut self.render, &mut self.octree, &mut self.cpu_octree);
         if !self.settings.pause_compute {
             process_subdivision(&mut self.render, &mut self.octree, &mut self.cpu_octree);
             process_unsubdivision(&mut self.compute, &mut self.render);
         }
 
         // Write octree to gpu
-        let nodes = self.cpu_octree.raw_data();
+        // let nodes = self.cpu_octree.raw_data();
 
-        self.render
-            .queue
-            .write_buffer(&self.render.node_buffer, 0, bytemuck::cast_slice(&nodes));
+        // self.render
+        //     .queue
+        //     .write_buffer(&self.render.node_buffer, 0, bytemuck::cast_slice(&nodes));
     }
 
     pub fn input(&mut self, window: &Window, event: &Event<()>) {

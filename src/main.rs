@@ -21,7 +21,7 @@ use adaptive::*;
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
-    let octree_depth = 8;
+    let octree_depth = 12;
 
     env_logger::init();
     let event_loop = EventLoop::new();
