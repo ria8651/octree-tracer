@@ -57,35 +57,19 @@ impl Octree {
         self.add_voxels(mask, self.positions[node], depth);
     }
 
-    // pub fn unsubdivide(&mut self, node: usize) {
-    //     let tnipt = self.nodes[node];
-    //     if tnipt >= VOXEL_OFFSET {
-    //         panic!("Node not subdivided!");
-    //     }
+    pub fn unsubdivide(&mut self, node: usize) {
+        let tnipt = self.nodes[node];
+        if tnipt >= VOXEL_OFFSET {
+            panic!("Node not subdivided!");
+        }
 
-    //     let mut lookup_pos = Vector3::zero();
-    //     for i in 0..8 {
-    //         let child_value = self.nodes[tnipt as usize + i];
-    //         if child_value < VOXEL_OFFSET {
-    //             // panic!("Tried to unsubdivide a node without voxel children!");
-    //             println!("Tried to unsubdivide a node without voxel children!");
-    //             return;
-    //         } else if child_value == VOXEL_OFFSET {
-    //             self.nodes[tnipt as usize + i] = 0;
-    //         } else if child_value > VOXEL_OFFSET {
-    //             self.nodes[tnipt as usize + i] = 0;
-    //         }
-    //     }
+        let pos = self.positions[node];
+        if pos == Vector3::zero() {
+            panic!("Tried to unsubdivide a node without position!");
+        }
 
-    //     if lookup_pos == Vector3::zero() {
-    //         panic!("Tried to unsubdivide a node without voxel children!");
-    //     }
-
-    //     self.nodes[node] = VOXEL_OFFSET;
-    //     let (_, _, pos, parent) = self.get_node(lookup_pos, None);
-    //     self.nodes[node] = self.create_voxel(parent);
-    //     // self.voxel_positions.push(pos);
-    // }
+        self.nodes[node] = create_voxel(1);
+    }
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, _: u32, depth: u32) {
         loop {

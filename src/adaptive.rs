@@ -1,5 +1,9 @@
 use super::*;
 
+// TODO: There isn't 256 million pixels, why do lower values crash?
+pub const MAX_SUBDIVISIONS_PER_FRAME: usize = 1024000;
+pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 1024000;
+
 pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree: &Octree) {
     let slice = render.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
@@ -11,7 +15,7 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
         let result: &mut [u32] = unsafe { reinterpret::reinterpret_mut_slice(&mut data) };
 
         // Reset atomic counter
-        let len = (result[0] as usize).min(MAX_SIBDIVISIONS_PER_FRAME - 1);
+        let len = (result[0] as usize).min(MAX_SUBDIVISIONS_PER_FRAME - 1);
         result[0] = 0;
 
         if len > 0 {
@@ -33,6 +37,8 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
             if tnipt < VOXEL_OFFSET {
                 let mask = cpu_octree.get_node_mask(tnipt as usize);
                 octree.subdivide(node_index, mask, voxel_depth + 1);
+            } else {
+                panic!("Tried to subdivide bottom level voxel!");
             }
 
             if voxel_index != node_index || voxel_pos != pos {
@@ -49,7 +55,7 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
     }
 }
 
-pub fn process_unsubdivision(compute: &mut Compute, render: &mut Render) {
+pub fn process_unsubdivision(compute: &mut Compute, render: &mut Render, octree: &mut Octree) {
     let slice = compute.unsubdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
@@ -59,26 +65,15 @@ pub fn process_unsubdivision(compute: &mut Compute, render: &mut Render) {
         let mut data = slice.get_mapped_range_mut();
         let result: &mut [u32] = unsafe { reinterpret::reinterpret_mut_slice(&mut data) };
 
-        let len = result[0] as usize;
+        // Reset atomic counter
+        let len = (result[0] as usize).min(MAX_UNSUBDIVISIONS_PER_FRAME - 1);
         result[0] = 0;
 
+        if len > 0 {
+            println!("Processing {} unsubdivisions", len);
+        }
         for i in 1..=len {
-            // // Compute shader returns VOXEL_OFFSET + voxel_index for a subdivision and node_index for a unsubdivision
-            // if result[i] >= octree::VOXEL_OFFSET {
-            //     println!("Subdivide: {}", result[i] - octree::VOXEL_OFFSET);
-
-            //     let voxel_index = result[i] - octree::VOXEL_OFFSET;
-            //     let pos = octree.voxel_positions[voxel_index as usize];
-            //     Compute::subdivide_octree(pos, octree, cpu_octree);
-            // } else {
-            //     let tnipt = octree.nodes[result[i] as usize];
-            //     if tnipt >= VOXEL_OFFSET {
-            //         println!("Doubleup!");
-            //     } else {
-            //         println!("Unsubdivide: {}", result[i]);
-            //         octree.unsubdivide(result[i] as usize);
-            //     }
-            // }
+            octree.unsubdivide(result[i] as usize);
 
             result[i] = 0;
         }

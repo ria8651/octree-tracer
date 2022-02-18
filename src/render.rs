@@ -1,8 +1,5 @@
 use super::*;
 
-// TODO: There isn't 256 million pixels, why do lower values crash?
-pub const MAX_SIBDIVISIONS_PER_FRAME: usize = 1024000;
-
 pub struct Render {
     pub surface: wgpu::Surface,
     pub device: wgpu::Device,
@@ -93,7 +90,7 @@ impl Render {
 
         let subdivision_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&[0u32; MAX_SIBDIVISIONS_PER_FRAME]),
+            contents: bytemuck::cast_slice(&[0u32; MAX_SUBDIVISIONS_PER_FRAME]),
             usage: wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST
                 | wgpu::BufferUsages::MAP_READ,

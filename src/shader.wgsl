@@ -29,7 +29,7 @@ var<storage, read_write> n: U32s;
 var<storage, read_write> s: AtomicU32s;
 
 
-let VOXEL_OFFSET: u32 = 134217728u;
+let VOXEL_OFFSET = 134217728u;
 
 [[stage(vertex)]]
 fn vs_main([[builtin(vertex_index)]] in_vertex_index: u32) -> [[builtin(position)]] vec4<f32> {
