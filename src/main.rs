@@ -8,20 +8,20 @@ use winit::{
 };
 
 mod app;
-// mod compute;
+mod compute;
 mod octree;
 mod render;
-// mod dynamic;
+mod adaptive;
 use app::*;
-// use compute::*;
+use compute::*;
 use octree::*;
 use render::*;
-// use dynamic::*;
+use adaptive::*;
 
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
-    let octree_depth = 12;
+    let octree_depth = 8;
 
     env_logger::init();
     let event_loop = EventLoop::new();

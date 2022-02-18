@@ -14,20 +14,20 @@ struct U32s {
     data: [[stride(4)]] array<u32>;
 };
 
-// struct AtomicU32s {
-//     counter: atomic<u32>;
-//     data: [[stride(4)]] array<u32>;
-// };
+struct AtomicU32s {
+    counter: atomic<u32>;
+    data: [[stride(4)]] array<u32>;
+};
 
 [[group(0), binding(0)]]
 var<uniform> u: Uniforms;
 [[group(0), binding(1)]]
 var<storage, read_write> n: U32s;
-// [[group(0), binding(3)]]
-// var<storage, read_write> s: AtomicU32s;
+[[group(0), binding(2)]]
+var<storage, read_write> s: AtomicU32s;
 
 
-let VOXEL_OFFSET: u32 = 2147483647u;
+let VOXEL_OFFSET: u32 = 134217728u;
 
 [[stage(vertex)]]
 fn vs_main([[builtin(vertex_index)]] in_vertex_index: u32) -> [[builtin(position)]] vec4<f32> {
@@ -117,7 +117,7 @@ struct Node {
 };
 
 fn node(i: u32) -> u32 {
-    return n.data[i];
+    return n.data[i] >> 4u;
 }
 
 struct Voxel {
@@ -147,7 +147,7 @@ fn get_voxel(pos: vec3<f32>) -> Voxel {
         // Lets be honest, you dont know how to name variables either
         let tnipt = node(node_index + child_index);
         if (tnipt >= VOXEL_OFFSET) {
-            return Voxel(tnipt - VOXEL_OFFSET, node_pos, depth);
+            return Voxel(node_index + child_index, node_pos, depth);
         }
 
         node_index = tnipt;
@@ -196,7 +196,8 @@ fn octree_ray(r: Ray) -> HitInfo {
     var normal = trunc(pos * 1.000001);
     loop {
         voxel = get_voxel(voxel_pos);
-        if (voxel.value > VOXEL_OFFSET) {
+        let tnipt = node(voxel.value) - VOXEL_OFFSET;
+        if (tnipt > 0u) {
             break;
         }
 
@@ -235,26 +236,23 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    // let tnipt = node(hit.value) - VOXEL_OFFSET;
-    // if (hit.hit && (v.data[hit.value] & u32(15)) < 15u) {
-    //     let result = v.data[tnipt] + 1u;
-    //     v.data[tnipt] = result;
+    if (hit.hit && (n.data[hit.value] & 15u) < 15u) {
+        n.data[hit.value] = n.data[hit.value] + 1u;
 
-    //     if (result > 4u) {
-    //         let index = atomicAdd(&s.counter, 1u);
-    //         s.data[index] = hit.value;
-    //     }
-    // }
+        if ((n.data[hit.value] & 15u) > 4u) {
+            let index = atomicAdd(&s.counter, 1u);
+            s.data[index] = hit.value;
+        }
+    }
 
     // output_colour = vec3<f32>(rand(hit.pos.xy + hit.pos.z * 10.0));
-    // if (u.show_hits) {
-    //     output_colour = vec3<f32>(f32(v.data[tnipt] & u32(15)) / 10.0);
-    //     // output_colour = vec3<f32>(f32(v.data[hit.value] >> 4u) / 100000.0);
-    // } else {
-        if (u.show_steps) {
-            output_colour = vec3<f32>(f32(hit.steps) / 64.0);
-        } else {
-            if (hit.hit) {
+    if (u.show_steps) {
+        output_colour = vec3<f32>(f32(hit.steps) / 64.0);
+    } else {
+        if (hit.hit) {
+            if (u.show_hits) {
+                output_colour = vec3<f32>(f32(n.data[hit.value] & 15u) / 15.0);
+            } else {
                 let sun_dir = normalize(u.sun_dir.xyz);
 
                 let ambient = 0.3;
@@ -269,11 +267,11 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
 
                 let colour = vec3<f32>(0.0, 1.0, 0.0);
                 output_colour = (ambient + diffuse) * colour;
-            } else {
-                output_colour =  vec3<f32>(0.2);
             }
+        } else {
+            output_colour =  vec3<f32>(0.2);
         }
-    // }
+    }
 
     // let ahha = u.dimensions.x * u.dimensions.y;
     // output_colour = vec3<f32>(f32(atomicAdd(&d.atomic_int, 1u)) / ahha);
@@ -282,7 +280,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     //     atomicStore(&d.atomic_int, 0u);
     // }
 
-    // output_colour = vec3<f32>(f32(voxel(get_voxel(vec3<f32>(clip_space, u.misc_value)).value)));
+    // output_colour = vec3<f32>(f32(get_voxel(vec3<f32>(clip_space, u.misc_value)).value));
 
     return vec4<f32>(pow(clamp(output_colour, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(f32(u.misc_bool) * -1.2 + 2.2)), 0.5);
 }

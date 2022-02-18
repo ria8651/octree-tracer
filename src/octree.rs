@@ -2,7 +2,7 @@ use cgmath::*;
 
 // First palette colour is empty voxel
 // const PALETTE: [u32; 3] = [0x00000000, 0x0000FF00, 0x000000FF];
-pub const VOXEL_OFFSET: u32 = u32::MAX / 2;
+pub const VOXEL_OFFSET: u32 = 134217728;
 
 /// Layout (Outdated)
 /// ```
@@ -19,11 +19,9 @@ pub struct Octree {
 impl Octree {
     pub fn new(mask: u8) -> Self {
         let nodes = Vec::new();
-        let mut voxels = Vec::new();
-        let mut voxel_positions = Vec::new();
+        let voxel_positions = Vec::new();
         // le empty voxel
-        voxels.push(0);
-        voxel_positions.push(Vector3::zero());
+        // voxel_positions.push(Vector3::zero());
 
         let mut octree = Self {
             nodes,
@@ -31,6 +29,10 @@ impl Octree {
         };
         octree.add_voxels(mask, true, Vector3::zero(), 1, 0);
         octree
+    }
+
+    pub fn get_node(&self, index: usize) -> u32 {
+        self.nodes[index] >> 4
     }
 
     pub fn add_voxels(
@@ -45,30 +47,28 @@ impl Octree {
         for i in 0..8 {
             if mask >> i & 1 != 0 {
                 if bottom_level {
-                    self.nodes.push(VOXEL_OFFSET + 1);
+                    self.nodes.push(create_voxel(1));
                     // let new_pos = voxel_pos + Octree::pos_offset(i, depth);
                     // self.voxel_positions.push(new_pos);
                 } else {
                     self.nodes.push(u32::MAX);
                 }
             } else {
-                self.nodes.push(VOXEL_OFFSET);
+                self.nodes.push(create_voxel(0));
             }
         }
     }
 
     pub fn subdivide(&mut self, node: usize, mask: u8, bottom_level: bool, depth: u32) {
-        if self.nodes[node] < VOXEL_OFFSET {
+        if self.get_node(node) < VOXEL_OFFSET {
             panic!("Node already subdivided!");
         }
 
         let mut voxel_pos = Vector3::zero();
-        if bottom_level == true {
-            
-        }
+        if bottom_level == true {}
 
         // Turn voxel into node
-        self.nodes[node] = self.nodes.len() as u32;
+        self.nodes[node] = create_node(self.nodes.len() as u32);
 
         self.add_voxels(mask, bottom_level, voxel_pos, depth, node);
     }
@@ -105,9 +105,9 @@ impl Octree {
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, _: u32, depth: u32) {
         loop {
-            let (node, node_depth, _, parent) = self.get_node(pos, None);
+            let (node, node_depth, _, parent) = self.find_voxel(pos, None);
             if depth == node_depth {
-                self.nodes[node] = VOXEL_OFFSET + 1;
+                self.nodes[node] = create_voxel(1);
                 return;
             } else {
                 self.subdivide(node, 0x00000000, true, node_depth);
@@ -115,7 +115,7 @@ impl Octree {
         }
     }
     /// Returns (index, depth, pos, parent_index)
-    pub fn get_node(
+    pub fn find_voxel(
         &self,
         pos: Vector3<f32>,
         max_depth: Option<u32>,
@@ -136,20 +136,20 @@ impl Octree {
 
             node_pos += Octree::pos_offset(child_index, depth);
 
-            if self.nodes[node_index + child_index] >= VOXEL_OFFSET
+            if self.get_node(node_index + child_index) >= VOXEL_OFFSET
                 || depth == max_depth.unwrap_or(u32::MAX)
             {
                 return (node_index + child_index, depth, node_pos, parent);
             }
 
             parent = node_index;
-            node_index = self.nodes[node_index + child_index] as usize;
+            node_index = self.get_node(node_index + child_index) as usize;
         }
     }
 
     // #[allow(dead_code)]
     // pub fn fill_voxel_positions(&mut self) {
-        // self.voxel_positions = vec![Vector3::zero(); self.voxels.len()];
+    // self.voxel_positions = vec![Vector3::zero(); self.voxels.len()];
 
     //     let mut stack = Vec::new();
     //     for child_index in 0..8 {
@@ -164,7 +164,7 @@ impl Octree {
     //             if voxel_index == 0 {
     //                 continue;
     //             }
-                // self.voxel_positions[voxel_index as usize] = pos;
+    // self.voxel_positions[voxel_index as usize] = pos;
     //         } else {
     //             for child_index in 0..8 {
     //                 let new_index = tnipt as usize + child_index;
@@ -179,7 +179,7 @@ impl Octree {
     pub fn get_node_mask(&self, node: usize) -> u8 {
         let mut mask = 0;
         for i in 0..8 {
-            if self.nodes[node + i] != VOXEL_OFFSET {
+            if self.get_node(node + i) != VOXEL_OFFSET {
                 mask |= 1 << i;
             }
         }
@@ -212,6 +212,14 @@ impl Octree {
     }
 }
 
+fn create_node(value: u32) -> u32 {
+    value << 4
+}
+
+fn create_voxel(value: u32) -> u32 {
+    (VOXEL_OFFSET + value) << 4
+}
+
 // fn count_bits(mut n: u8) -> usize {
 //     let mut count = 0;
 //     while n != 0 {
@@ -226,26 +234,30 @@ impl std::fmt::Debug for Octree {
         write!(f, "Nodes ({}):\n", self.nodes.len())?;
         let mut c = 0;
         for value in &self.nodes {
-            if *value >= VOXEL_OFFSET {
-                let voxel_index = *value - VOXEL_OFFSET;
-                // let stringgy;
-                // if voxel_index == 0 {
-                //     stringgy = "empty".to_string();
-                // } else {
-                //     let col = PALETTE[self.voxels[voxel_index as usize] as usize];
-                //     stringgy =
-                //         format!("{}, {}, {}", (col >> 16) as u8, (col >> 8) as u8, col as u8);
-                // }
-                let pos = self.voxel_positions[voxel_index as usize];
+            // if *value >= VOXEL_OFFSET {
+            //     let voxel_index = *value - VOXEL_OFFSET;
+            //     // let stringgy;
+            //     // if voxel_index == 0 {
+            //     //     stringgy = "empty".to_string();
+            //     // } else {
+            //     //     let col = PALETTE[self.voxels[voxel_index as usize] as usize];
+            //     //     stringgy =
+            //     //         format!("{}, {}, {}", (col >> 16) as u8, (col >> 8) as u8, col as u8);
+            //     // }
+            //     let pos = self.voxel_positions[voxel_index as usize];
 
-                write!(
-                    f,
-                    "  Leaf: {} ({}, {}, {})\n",
-                    voxel_index, pos.x, pos.y, pos.z
-                )?;
+            //     write!(
+            //         f,
+            //         "  Leaf: {} ({}, {}, {})\n",
+            //         voxel_index, pos.x, pos.y, pos.z
+            //     )?;
+            // } else {
+            if *value >= VOXEL_OFFSET << 4 {
+                write!(f, "  Voxel: {}\n", (*value >> 4) - VOXEL_OFFSET)?;
             } else {
-                write!(f, "  Node: {}\n", value)?;
+                write!(f, "  Node: {}\n", *value >> 4)?;
             }
+            // }
 
             c += 1;
             if c % 8 == 0 {
@@ -306,12 +318,12 @@ fn load_octree(data: &[u8], octree_depth: u32) -> Result<Octree, String> {
     let mut data_index = 1;
     let mut node_index = 0;
     while node_index < octree.nodes.len() {
-        if octree.nodes[node_index] != VOXEL_OFFSET {
+        if octree.get_node(node_index) != VOXEL_OFFSET {
             if data_index < node_end {
                 let child_mask = data[data_start + data_index];
                 octree.subdivide(node_index, child_mask, false, 0);
             } else {
-                octree.nodes[node_index] = VOXEL_OFFSET + 1;
+                octree.nodes[node_index] = create_voxel(1);
             }
 
             data_index += 1;
