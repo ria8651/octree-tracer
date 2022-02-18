@@ -1,6 +1,7 @@
 use super::*;
 
-pub const MAX_SIBDIVISIONS_PER_FRAME: usize = 64000000;
+// TODO: There isn't 256 million pixels, why do lower values crash?
+pub const MAX_SIBDIVISIONS_PER_FRAME: usize = 256000000;
 
 pub struct Render {
     pub surface: wgpu::Surface,

@@ -238,10 +238,10 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    if (hit.hit && (n.data[hit.value] & 15u) < 15u && hit.depth < u.max_depth) {
+    if (hit.hit && (n.data[hit.value] & 15u) < 15u && hit.depth < u.max_depth - 1u) {
         n.data[hit.value] = n.data[hit.value] + 1u;
 
-        if ((n.data[hit.value] & 15u) > 4u) {
+        if ((n.data[hit.value] & 15u) >= 2u) {
             let index = atomicAdd(&s.counter, 1u);
             s.data[index] = hit.value;
         }

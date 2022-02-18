@@ -1,6 +1,6 @@
 use super::*;
 
-pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 64000000;
+pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 256000000;
 const WORK_GROUP_SIZE: u32 = 16;
 const DISPATCH_SIZE_Y: u32 = 256;
 
@@ -31,15 +31,16 @@ impl Compute {
                     entry_point: "main",
                 });
 
-        let unsubdivision_buffer = render
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(&[0u32; MAX_UNSUBDIVISIONS_PER_FRAME]),
-                usage: wgpu::BufferUsages::STORAGE
-                    | wgpu::BufferUsages::COPY_DST
-                    | wgpu::BufferUsages::MAP_READ,
-            });
+        let unsubdivision_buffer =
+            render
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(&[0u32; MAX_UNSUBDIVISIONS_PER_FRAME]),
+                    usage: wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::COPY_DST
+                        | wgpu::BufferUsages::MAP_READ,
+                });
 
         let compute_bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,

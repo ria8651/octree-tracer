@@ -23,10 +23,7 @@ impl Octree {
         // le empty voxel
         // positions.push(Vector3::zero());
 
-        let mut octree = Self {
-            nodes,
-            positions,
-        };
+        let mut octree = Self { nodes, positions };
         octree.add_voxels(mask, Vector3::zero(), 1);
         octree
     }
@@ -35,12 +32,7 @@ impl Octree {
         self.nodes[index] >> 4
     }
 
-    pub fn add_voxels(
-        &mut self,
-        mask: u8,
-        voxel_pos: Vector3<f32>,
-        depth: u32,
-    ) {
+    pub fn add_voxels(&mut self, mask: u8, voxel_pos: Vector3<f32>, depth: u32) {
         // Add 8 new voxels
         for i in 0..8 {
             let new_pos = voxel_pos + Octree::pos_offset(i, depth);
@@ -166,6 +158,7 @@ impl Octree {
     //     }
     // }
 
+    /// Takes a pointer to the first child NOT to the parent
     pub fn get_node_mask(&self, node: usize) -> u8 {
         let mut mask = 0;
         for i in 0..8 {
@@ -222,9 +215,23 @@ impl std::fmt::Debug for Octree {
         for value in &self.nodes {
             let pos = self.positions[c];
             if *value >= VOXEL_OFFSET << 4 {
-                write!(f, "  Voxel: {} ({}, {}, {})\n", (*value >> 4) - VOXEL_OFFSET, pos.x, pos.y, pos.z)?;
+                write!(
+                    f,
+                    "  Voxel: {} ({}, {}, {})\n",
+                    (*value >> 4) - VOXEL_OFFSET,
+                    pos.x,
+                    pos.y,
+                    pos.z
+                )?;
             } else {
-                write!(f, "  Node: {} ({}, {}, {})\n", *value >> 4, pos.x, pos.y, pos.z)?;
+                write!(
+                    f,
+                    "  Node: {} ({}, {}, {})\n",
+                    *value >> 4,
+                    pos.x,
+                    pos.y,
+                    pos.z
+                )?;
             }
 
             c += 1;
@@ -242,10 +249,10 @@ pub fn load_file(file: String, octree_depth: u32) -> Result<Octree, String> {
     let data = std::fs::read(path).map_err(|e| e.to_string())?;
     use std::ffi::OsStr;
     let octree = match path.extension().and_then(OsStr::to_str) {
-        Some("rsvo") => load_octree(&data, octree_depth),
-        Some("vox") => load_vox(&data),
-        _ => Err("Unknown file type".to_string()),
-    }?;
+        Some("rsvo") => load_octree(&data, octree_depth)?,
+        Some("vox") => load_vox(&data)?,
+        _ => return Err("Unknown file type".to_string()),
+    };
 
     // println!("{:?}", octree);
     // panic!();
@@ -272,6 +279,13 @@ fn load_octree(data: &[u8], octree_depth: u32) -> Result<Octree, String> {
         ]);
 
         node_counts.push(node_count);
+    }
+
+    if octree_depth as usize > top_level {
+        return Err(format!(
+            "Octree depth ({}) is greater than top level ({})",
+            octree_depth, top_level
+        ));
     }
 
     let node_end = node_counts[0..octree_depth as usize].iter().sum::<u32>() as usize;

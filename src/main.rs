@@ -7,21 +7,21 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+mod adaptive;
 mod app;
 mod compute;
 mod octree;
 mod render;
-mod adaptive;
+use adaptive::*;
 use app::*;
 use compute::*;
 use octree::*;
 use render::*;
-use adaptive::*;
 
 fn main() {
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
-    let octree_depth = 12;
+    let octree_depth = 10;
 
     env_logger::init();
     let event_loop = EventLoop::new();

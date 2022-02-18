@@ -26,9 +26,9 @@ impl App {
         };
 
         let mut defualt_octree = Octree::new(0);
-        // defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 12);
-        // defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
-        // defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
+        defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 5);
+        defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
+        defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
         // println!("{:?}", defualt_octree);
 
         let cpu_octree = match load_file(octree_path, octree_depth) {
@@ -63,7 +63,7 @@ impl App {
         // app.compute
         //     .update(&app.render, &mut app.octree, &mut app.cpu_octree);
         // app.update(0.0);
-        
+
         // println!("{:?}", app.octree);
         // panic!();
 
@@ -94,11 +94,10 @@ impl App {
             self.character.look = (rotation * self.character.look).normalize();
         }
 
+        self.compute.update(&mut self.render, &self.octree);
+
         self.render
             .update(time, &mut self.settings, &self.character);
-
-        self.compute
-            .update(&mut self.render, &self.octree);
         if !self.settings.pause_compute {
             process_subdivision(&mut self.render, &mut self.octree, &mut self.cpu_octree);
             process_unsubdivision(&mut self.compute, &mut self.render);
@@ -152,12 +151,8 @@ impl App {
                                 0,
                                 bytemuck::cast_slice(&nodes),
                             );
-                            // self.render.queue.write_buffer(
-                            //     &self.compute.feedback_buffer,
-                            //     0,
-                            //     bytemuck::cast_slice(&[0; compute::MAX_SIBDIVISIONS]),
-                            // );
-
+                            
+                            self.render.uniforms.max_depth = self.settings.octree_depth;
                             self.settings.error_string = "".to_string();
                         }
                         Err(e) => {
@@ -166,6 +161,9 @@ impl App {
                     },
                     None => self.settings.error_string = "No file selected".to_string(),
                 }
+            }
+            if self.settings.error_string != "" {
+                ui.colored_label(egui::Color32::RED, &self.settings.error_string);
             }
 
             ui.add(egui::Slider::new(&mut self.settings.octree_depth, 0..=20).text("Octree depth"));
@@ -204,7 +202,10 @@ impl App {
             ui.checkbox(&mut self.settings.pause_compute, "Pause compute");
             ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.0..=1.0).text("Misc"));
             ui.checkbox(&mut self.render.uniforms.misc_bool, "Misc");
-            ui.label(format!("Nodes: {:.2} million", self.octree.nodes.len() as f32 / 1000000.0));
+            ui.label(format!(
+                "Nodes: {:.2} million",
+                self.octree.nodes.len() as f32 / 1000000.0
+            ));
         });
     }
 

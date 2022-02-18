@@ -14,6 +14,7 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
         let len = result[0] as usize;
         result[0] = 0;
 
+        println!("Processing {} subdivisions", len);
         for i in 1..=len {
             let node_index = result[i] as usize;
 
@@ -21,8 +22,6 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
                 // println!("Doubleup!");
                 continue;
             }
-
-            // println!("Subdividing node {}", result[i]);
 
             let pos = octree.positions[node_index];
             let (voxel_index, voxel_depth, voxel_pos) = octree.find_voxel(pos, None);
@@ -33,21 +32,6 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
                 let mask = cpu_octree.get_node_mask(tnipt as usize);
                 octree.subdivide(node_index, mask, voxel_depth + 1);
             }
-            
-            
-            // let (voxel_index, voxel_depth, _) = octree.find_voxel(pos, None);
-            // if voxel_depth < 20 {
-            //     octree.subdivide(voxel_index, 0b10110111, true, voxel_depth + 1);
-            // }
-
-            // let (cpu_octree_node, _, _) = cpu_octree.find_voxel(pos, Some(voxel_depth));
-
-            // let tnipt = cpu_octree.nodes[cpu_octree_node];
-            // if tnipt < octree::VOXEL_OFFSET {
-            //     let mask = cpu_octree.get_node_mask(tnipt as usize);
-            //     octree.subdivide(voxel_index, mask, true, voxel_depth + 1);
-            // }
-
 
             if voxel_index != node_index || voxel_pos != pos {
                 panic!("Incorrect voxel position!");
