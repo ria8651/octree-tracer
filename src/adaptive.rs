@@ -15,24 +15,25 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
         result[0] = 0;
 
         for i in 1..=len {
+            let node_index = result[i] as usize;
+
+            if octree.get_node(node_index) < VOXEL_OFFSET {
+                // println!("Doubleup!");
+                continue;
+            }
+
             // println!("Subdividing node {}", result[i]);
+            
+            let pos = octree.positions[node_index];
+            let (voxel_index, voxel_depth, _) = octree.find_voxel(pos, None);
 
-            // Compute shader returns voxel to subdivide
-            // let tnipt = octree.nodes[result[i] as usize];
-            // if tnipt < VOXEL_OFFSET {
-            //     // panic!("Node already subdivided!");
-            //     println!("Node already subdivided!");
-            //     continue;
-            // }
+            if voxel_index != node_index {
+                panic!("Incorrect voxel position!");
+            }
 
-            // // Subdivide
-            // let voxel_index = tnipt - VOXEL_OFFSET;
-            // let pos = octree.voxel_positions[voxel_index as usize];
-
-            // let (voxel_index, voxel_depth, _, _) = octree.get_node(pos, None);
-            // if voxel_depth < 20 {
-            //     octree.subdivide(voxel_index, 0b10110111, true, voxel_depth + 1);
-            // }
+            if voxel_depth < 20 {
+                octree.subdivide(node_index, 0b10110111, voxel_depth + 1);
+            }
 
             result[i] = 0;
         }

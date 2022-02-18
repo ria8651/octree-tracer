@@ -1,6 +1,6 @@
 use super::*;
 
-pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 1024000;
+pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 64000000;
 const WORK_GROUP_SIZE: u32 = 16;
 const DISPATCH_SIZE_Y: u32 = 256;
 
@@ -64,9 +64,11 @@ impl Compute {
     }
 
     pub fn update(&self, render: &Render, octree: &mut Octree, cpu_octree: &mut Octree) {
-        let iterations = octree.node_len() as u32;
+        let iterations = octree.nodes.len();
         let dispatch_size_x =
             (iterations as f32 / WORK_GROUP_SIZE as f32 / DISPATCH_SIZE_Y as f32).ceil() as u32;
+
+        // println!("Iteration: {} / Dispatch size: {}", iterations, dispatch_size_x);
 
         let mut encoder = render
             .device
@@ -78,8 +80,6 @@ impl Compute {
 
             compute_pass.set_pipeline(&self.compute_pipeline);
             compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
-            // compute_pass.set_bind_group(1, &self.node_bind_group, &[]);
-            // compute_pass.set_bind_group(2, &self.feedback_bind_group, &[]);
             compute_pass.dispatch(dispatch_size_x, DISPATCH_SIZE_Y, 1);
         }
 

@@ -168,6 +168,7 @@ struct HitInfo {
     pos: vec3<f32>;
     normal: vec3<f32>;
     steps: u32;
+    depth: u32;
 };
 
 fn octree_ray(r: Ray) -> HitInfo {
@@ -180,7 +181,7 @@ fn octree_ray(r: Ray) -> HitInfo {
         // Get position on surface of the octree
         dist = ray_box_dist(r, vec3<f32>(-1.0), vec3<f32>(1.0));
         if (dist == 0.0){
-            return HitInfo(false, 0u, vec3<f32>(0.0), vec3<f32>(0.0), 0u);
+            return HitInfo(false, 0u, vec3<f32>(0.0), vec3<f32>(0.0), 0u, 0u);
         }
 
         pos = r.pos + dir * dist;
@@ -212,16 +213,16 @@ fn octree_ray(r: Ray) -> HitInfo {
         voxel_pos = pos + dir * t_current - normal * 0.000001;
 
         if (!in_bounds(voxel_pos)) {
-            return HitInfo(false, 0x20202000u, vec3<f32>(0.0), vec3<f32>(0.0), steps);
+            return HitInfo(false, 0x20202000u, vec3<f32>(0.0), vec3<f32>(0.0), steps, voxel.depth);
         }
 
         steps = steps + 1u;
         if (steps > 100u) {
-            return HitInfo(true, 0xFF000000u, voxel_pos, normal, steps);
+            return HitInfo(true, 0xFF000000u, voxel_pos, normal, steps, 100u);
         }
     }
 
-    return HitInfo(true, voxel.value, voxel_pos, normal, steps);
+    return HitInfo(true, voxel.value, voxel_pos, normal, steps, voxel.depth);
 }
 
 [[stage(fragment)]]
@@ -236,8 +237,8 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    if (hit.hit) { //  && (n.data[hit.value] & 15u) < 15u
-        n.data[hit.value] = (n.data[hit.value] & 4294967280u) | ((n.data[hit.value] + 1u) & 15u);
+    if (hit.hit && (n.data[hit.value] & 15u) < 15u && hit.depth < 20u) {
+        n.data[hit.value] = n.data[hit.value] + 1u;
 
         if ((n.data[hit.value] & 15u) > 4u) {
             let index = atomicAdd(&s.counter, 1u);

@@ -13,21 +13,21 @@ pub const VOXEL_OFFSET: u32 = 134217728;
 pub struct Octree {
     pub nodes: Vec<u32>,
     // stays on cpu
-    pub voxel_positions: Vec<Vector3<f32>>,
+    pub positions: Vec<Vector3<f32>>,
 }
 
 impl Octree {
     pub fn new(mask: u8) -> Self {
         let nodes = Vec::new();
-        let voxel_positions = Vec::new();
+        let positions = Vec::new();
         // le empty voxel
-        // voxel_positions.push(Vector3::zero());
+        // positions.push(Vector3::zero());
 
         let mut octree = Self {
             nodes,
-            voxel_positions,
+            positions,
         };
-        octree.add_voxels(mask, true, Vector3::zero(), 1, 0);
+        octree.add_voxels(mask, Vector3::zero(), 1);
         octree
     }
 
@@ -38,39 +38,34 @@ impl Octree {
     pub fn add_voxels(
         &mut self,
         mask: u8,
-        bottom_level: bool,
         voxel_pos: Vector3<f32>,
         depth: u32,
-        parent: usize,
     ) {
         // Add 8 new voxels
         for i in 0..8 {
             if mask >> i & 1 != 0 {
-                if bottom_level {
-                    self.nodes.push(create_voxel(1));
-                    // let new_pos = voxel_pos + Octree::pos_offset(i, depth);
-                    // self.voxel_positions.push(new_pos);
-                } else {
-                    self.nodes.push(u32::MAX);
-                }
+                let new_pos = voxel_pos + Octree::pos_offset(i, depth);
+                self.nodes.push(create_voxel(1));
+                self.positions.push(new_pos);
             } else {
                 self.nodes.push(create_voxel(0));
+                self.positions.push(Vector3::zero());
             }
         }
     }
 
-    pub fn subdivide(&mut self, node: usize, mask: u8, bottom_level: bool, depth: u32) {
+    pub fn subdivide(&mut self, node: usize, mask: u8, depth: u32) {
         if self.get_node(node) < VOXEL_OFFSET {
             panic!("Node already subdivided!");
         }
 
-        let mut voxel_pos = Vector3::zero();
-        if bottom_level == true {}
-
+        let voxel_pos = self.positions[node];
+        self.positions[node] = Vector3::zero();
+        
         // Turn voxel into node
         self.nodes[node] = create_node(self.nodes.len() as u32);
 
-        self.add_voxels(mask, bottom_level, voxel_pos, depth, node);
+        self.add_voxels(mask, voxel_pos, depth);
     }
 
     // pub fn unsubdivide(&mut self, node: usize) {
@@ -105,25 +100,24 @@ impl Octree {
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, _: u32, depth: u32) {
         loop {
-            let (node, node_depth, _, parent) = self.find_voxel(pos, None);
+            let (node, node_depth, _) = self.find_voxel(pos, None);
             if depth == node_depth {
                 self.nodes[node] = create_voxel(1);
                 return;
             } else {
-                self.subdivide(node, 0x00000000, true, node_depth);
+                self.subdivide(node, 0x00000000, node_depth);
             }
         }
     }
-    /// Returns (index, depth, pos, parent_index)
+    /// Returns (index, depth, pos)
     pub fn find_voxel(
         &self,
         pos: Vector3<f32>,
         max_depth: Option<u32>,
-    ) -> (usize, u32, Vector3<f32>, usize) {
+    ) -> (usize, u32, Vector3<f32>) {
         let mut node_index = 0;
         let mut node_pos = Vector3::zero();
         let mut depth = 0;
-        let mut parent = 0;
         loop {
             depth += 1;
 
@@ -139,10 +133,9 @@ impl Octree {
             if self.get_node(node_index + child_index) >= VOXEL_OFFSET
                 || depth == max_depth.unwrap_or(u32::MAX)
             {
-                return (node_index + child_index, depth, node_pos, parent);
+                return (node_index + child_index, depth, node_pos);
             }
 
-            parent = node_index;
             node_index = self.get_node(node_index + child_index) as usize;
         }
     }
@@ -197,11 +190,6 @@ impl Octree {
         &self.nodes
     }
 
-    #[allow(dead_code)]
-    pub fn node_len(&self) -> usize {
-        self.nodes.len()
-    }
-
     fn pos_offset(child_index: usize, depth: u32) -> Vector3<f32> {
         let x = (child_index >> 2) & 1;
         let y = (child_index >> 1) & 1;
@@ -220,55 +208,33 @@ fn create_voxel(value: u32) -> u32 {
     (VOXEL_OFFSET + value) << 4
 }
 
-// fn count_bits(mut n: u8) -> usize {
-//     let mut count = 0;
-//     while n != 0 {
-//         n = n & (n - 1);
-//         count += 1;
-//     }
-//     return count;
-// }
+#[allow(dead_code)]
+fn count_bits(mut n: u8) -> usize {
+    let mut count = 0;
+    while n != 0 {
+        n = n & (n - 1);
+        count += 1;
+    }
+    return count;
+}
 
 impl std::fmt::Debug for Octree {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Nodes ({}):\n", self.nodes.len())?;
         let mut c = 0;
         for value in &self.nodes {
-            // if *value >= VOXEL_OFFSET {
-            //     let voxel_index = *value - VOXEL_OFFSET;
-            //     // let stringgy;
-            //     // if voxel_index == 0 {
-            //     //     stringgy = "empty".to_string();
-            //     // } else {
-            //     //     let col = PALETTE[self.voxels[voxel_index as usize] as usize];
-            //     //     stringgy =
-            //     //         format!("{}, {}, {}", (col >> 16) as u8, (col >> 8) as u8, col as u8);
-            //     // }
-            //     let pos = self.voxel_positions[voxel_index as usize];
-
-            //     write!(
-            //         f,
-            //         "  Leaf: {} ({}, {}, {})\n",
-            //         voxel_index, pos.x, pos.y, pos.z
-            //     )?;
-            // } else {
+            let pos = self.positions[c];
             if *value >= VOXEL_OFFSET << 4 {
-                write!(f, "  Voxel: {}\n", (*value >> 4) - VOXEL_OFFSET)?;
+                write!(f, "  Voxel: {} ({}, {}, {})\n", (*value >> 4) - VOXEL_OFFSET, pos.x, pos.y, pos.z)?;
             } else {
-                write!(f, "  Node: {}\n", *value >> 4)?;
+                write!(f, "  Node: {} ({}, {}, {})\n", *value >> 4, pos.x, pos.y, pos.z)?;
             }
-            // }
 
             c += 1;
             if c % 8 == 0 {
                 write!(f, "\n")?;
             }
         }
-
-        // write!(f, "\nVoxels ({}):\n", self.voxels.len())?;
-        // for value in &self.voxels {
-        //     write!(f, "  Voxel: {}\n", value)?;
-        // }
 
         Ok(())
     }
@@ -321,7 +287,7 @@ fn load_octree(data: &[u8], octree_depth: u32) -> Result<Octree, String> {
         if octree.get_node(node_index) != VOXEL_OFFSET {
             if data_index < node_end {
                 let child_mask = data[data_start + data_index];
-                octree.subdivide(node_index, child_mask, false, 0);
+                octree.subdivide(node_index, child_mask, 0);
             } else {
                 octree.nodes[node_index] = create_voxel(1);
             }

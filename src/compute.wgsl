@@ -11,7 +11,7 @@ var<storage, read_write> n: U32s;
 [[group(0), binding(1)]]
 var<storage, read_write> u: AtomicU32s;
 
-let DISPATCH_SIZE_Y = 1024u;
+let DISPATCH_SIZE_Y = 256u;
 let VOXEL_OFFSET = 2147483647u;
 
 [[stage(compute), workgroup_size(16)]]

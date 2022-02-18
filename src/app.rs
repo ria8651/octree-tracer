@@ -36,9 +36,9 @@ impl App {
         };
 
         let mask = cpu_octree.get_node_mask(0);
-        let octree = Octree::new(mask);
+        let octree = Octree::new(0b10110111);
 
-        let render = Render::new(window, &cpu_octree).await;
+        let render = Render::new(window, &octree).await;
         let compute = Compute::new(&render);
 
         let app = Self {
@@ -51,7 +51,8 @@ impl App {
             settings,
         };
 
-        // app.octree.subdivide(0, 0b0100101, true, 2);
+        // app.octree.subdivide(0, 0b0100101, 2);
+        // app.octree.subdivide(8, 0b1100101, 3);
         // app.octree.unsubdivide(0);
         // println!("{:?}", app.octree);
 
@@ -68,6 +69,8 @@ impl App {
     }
 
     pub fn update(&mut self, time: f64) {
+        self.gui(time);
+
         let input = Vector3::new(
             self.input.right as u32 as f32 - self.input.left as u32 as f32,
             self.input.up as u32 as f32 - self.input.down as u32 as f32,
@@ -89,6 +92,25 @@ impl App {
             self.character.look = (rotation * self.character.look).normalize();
         }
 
+        self.render
+            .update(time, &mut self.settings, &self.character);
+
+        self.compute
+            .update(&mut self.render, &mut self.octree, &mut self.cpu_octree);
+        if !self.settings.pause_compute {
+            process_subdivision(&mut self.render, &mut self.octree, &mut self.cpu_octree);
+            process_unsubdivision(&mut self.compute, &mut self.render);
+        }
+
+        // Write octree to gpu
+        let nodes = self.octree.raw_data();
+
+        self.render
+            .queue
+            .write_buffer(&self.render.node_buffer, 0, bytemuck::cast_slice(&nodes));
+    }
+
+    pub fn gui(&mut self, time: f64) {
         let fps = if let Some(previous_frame_time) = self.render.previous_frame_time {
             let fps = 1.0 / (time - previous_frame_time);
             self.render.previous_frame_time = Some(time);
@@ -180,23 +202,8 @@ impl App {
             ui.checkbox(&mut self.settings.pause_compute, "Pause compute");
             ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.0..=1.0).text("Misc"));
             ui.checkbox(&mut self.render.uniforms.misc_bool, "Misc");
+            ui.label(format!("Nodes: {:.2} million", self.octree.nodes.len() as f32 / 1000000.0));
         });
-
-        self.render
-            .update(time, &mut self.settings, &self.character);
-
-        self.compute.update(&mut self.render, &mut self.octree, &mut self.cpu_octree);
-        if !self.settings.pause_compute {
-            process_subdivision(&mut self.render, &mut self.octree, &mut self.cpu_octree);
-            process_unsubdivision(&mut self.compute, &mut self.render);
-        }
-
-        // Write octree to gpu
-        // let nodes = self.cpu_octree.raw_data();
-
-        // self.render
-        //     .queue
-        //     .write_buffer(&self.render.node_buffer, 0, bytemuck::cast_slice(&nodes));
     }
 
     pub fn input(&mut self, window: &Window, event: &Event<()>) {
