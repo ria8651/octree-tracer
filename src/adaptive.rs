@@ -1,6 +1,6 @@
 use super::*;
 
-pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree: &mut Octree) {
+pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree: &Octree) {
     let slice = render.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
@@ -23,17 +23,33 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
             }
 
             // println!("Subdividing node {}", result[i]);
-            
+
             let pos = octree.positions[node_index];
-            let (voxel_index, voxel_depth, _) = octree.find_voxel(pos, None);
+            let (voxel_index, voxel_depth, voxel_pos) = octree.find_voxel(pos, None);
             let (cpu_index, _, _) = cpu_octree.find_voxel(pos, Some(voxel_depth));
-            
-            if voxel_depth < 20 {
-                octree.subdivide(node_index, cpu_octree.get_node_mask(cpu_index), voxel_depth + 1);
+
+            let tnipt = cpu_octree.get_node(cpu_index);
+            if tnipt < VOXEL_OFFSET {
+                let mask = cpu_octree.get_node_mask(tnipt as usize);
+                octree.subdivide(node_index, mask, voxel_depth + 1);
             }
             
+            
+            // let (voxel_index, voxel_depth, _) = octree.find_voxel(pos, None);
+            // if voxel_depth < 20 {
+            //     octree.subdivide(voxel_index, 0b10110111, true, voxel_depth + 1);
+            // }
 
-            if voxel_index != node_index {
+            // let (cpu_octree_node, _, _) = cpu_octree.find_voxel(pos, Some(voxel_depth));
+
+            // let tnipt = cpu_octree.nodes[cpu_octree_node];
+            // if tnipt < octree::VOXEL_OFFSET {
+            //     let mask = cpu_octree.get_node_mask(tnipt as usize);
+            //     octree.subdivide(voxel_index, mask, true, voxel_depth + 1);
+            // }
+
+
+            if voxel_index != node_index || voxel_pos != pos {
                 panic!("Incorrect voxel position!");
             }
 

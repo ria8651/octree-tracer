@@ -21,7 +21,7 @@ pub struct Render {
 
 impl Render {
     // Creating some of the wgpu types requires async code
-    pub async fn new(window: &Window, octree: &Octree) -> Self {
+    pub async fn new(window: &Window, octree: &Octree, max_depth: u32) -> Self {
         window.set_cursor_grab(true).unwrap();
         window.set_cursor_visible(false);
 
@@ -73,7 +73,7 @@ impl Render {
         });
 
         // #region Buffers
-        let uniforms = Uniforms::new();
+        let uniforms = Uniforms::new(max_depth);
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[uniforms]),

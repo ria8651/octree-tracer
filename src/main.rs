@@ -120,6 +120,7 @@ pub struct Uniforms {
     camera_inverse: [[f32; 4]; 4],
     dimensions: [f32; 4],
     sun_dir: [f32; 4],
+    max_depth: u32,
     show_steps: bool,
     show_hits: bool,
     shadows: bool,
@@ -132,12 +133,13 @@ pub struct Uniforms {
 unsafe impl bytemuck::Pod for Uniforms {}
 
 impl Uniforms {
-    fn new() -> Self {
+    fn new(max_depth: u32) -> Self {
         Self {
             camera: [[0.0; 4]; 4],
             camera_inverse: [[0.0; 4]; 4],
             dimensions: [0.0, 0.0, 0.0, 0.0],
             sun_dir: [-1.7, -1.0, 0.8, 0.0],
+            max_depth,
             show_steps: false,
             show_hits: false,
             shadows: true,

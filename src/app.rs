@@ -26,9 +26,10 @@ impl App {
         };
 
         let mut defualt_octree = Octree::new(0);
-        defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 3);
-        defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
-        defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
+        // defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 12);
+        // defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
+        // defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
+        // println!("{:?}", defualt_octree);
 
         let cpu_octree = match load_file(octree_path, octree_depth) {
             Ok(cpu_octree) => cpu_octree,
@@ -38,7 +39,7 @@ impl App {
         let mask = cpu_octree.get_node_mask(0);
         let octree = Octree::new(mask);
 
-        let render = Render::new(window, &octree).await;
+        let render = Render::new(window, &octree, octree_depth).await;
         let compute = Compute::new(&render);
 
         let app = Self {
@@ -62,6 +63,7 @@ impl App {
         // app.compute
         //     .update(&app.render, &mut app.octree, &mut app.cpu_octree);
         // app.update(0.0);
+        
         // println!("{:?}", app.octree);
         // panic!();
 
@@ -96,7 +98,7 @@ impl App {
             .update(time, &mut self.settings, &self.character);
 
         self.compute
-            .update(&mut self.render, &mut self.octree, &mut self.cpu_octree);
+            .update(&mut self.render, &self.octree);
         if !self.settings.pause_compute {
             process_subdivision(&mut self.render, &mut self.octree, &mut self.cpu_octree);
             process_unsubdivision(&mut self.compute, &mut self.render);

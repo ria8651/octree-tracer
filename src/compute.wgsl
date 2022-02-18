@@ -56,8 +56,5 @@ fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
     //     }
     // }
 
-    // if ((n.data[id] & 15u) < 15u) {
-    //     n.data[id] = n.data[id] + 1u;
-    // } 
     n.data[id] = n.data[id] & 4294967280u;
 }

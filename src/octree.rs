@@ -43,13 +43,13 @@ impl Octree {
     ) {
         // Add 8 new voxels
         for i in 0..8 {
+            let new_pos = voxel_pos + Octree::pos_offset(i, depth);
             if mask >> i & 1 != 0 {
-                let new_pos = voxel_pos + Octree::pos_offset(i, depth);
                 self.nodes.push(create_voxel(1));
                 self.positions.push(new_pos);
             } else {
                 self.nodes.push(create_voxel(0));
-                self.positions.push(Vector3::zero());
+                self.positions.push(new_pos);
             }
         }
     }
@@ -59,13 +59,10 @@ impl Octree {
             panic!("Node already subdivided!");
         }
 
-        let voxel_pos = self.positions[node];
-        self.positions[node] = Vector3::zero();
-        
         // Turn voxel into node
         self.nodes[node] = create_node(self.nodes.len() as u32);
 
-        self.add_voxels(mask, voxel_pos, depth);
+        self.add_voxels(mask, self.positions[node], depth);
     }
 
     // pub fn unsubdivide(&mut self, node: usize) {
@@ -105,7 +102,7 @@ impl Octree {
                 self.nodes[node] = create_voxel(1);
                 return;
             } else {
-                self.subdivide(node, 0x00000000, node_depth);
+                self.subdivide(node, 0x00000000, node_depth + 1);
             }
         }
     }

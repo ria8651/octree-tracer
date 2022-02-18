@@ -63,7 +63,7 @@ impl Compute {
         }
     }
 
-    pub fn update(&self, render: &Render, octree: &mut Octree, cpu_octree: &mut Octree) {
+    pub fn update(&self, render: &Render, octree: &Octree) {
         let iterations = octree.nodes.len();
         let dispatch_size_x =
             (iterations as f32 / WORK_GROUP_SIZE as f32 / DISPATCH_SIZE_Y as f32).ceil() as u32;
@@ -85,27 +85,4 @@ impl Compute {
 
         render.queue.submit(Some(encoder.finish()));
     }
-
-    // pub fn subdivide_octree(pos: Vector3<f32>, octree: &mut Octree, cpu_octree: &mut Octree) {
-    //     if pos == Vector3::zero() {
-    //         // panic!("Tried to subdivide deleted node! (over read feedback buffer?)");
-    //         println!("Tried to subdivide deleted node! (over read feedback buffer?)");
-    //         return;
-    //     }
-
-    //     let (voxel_index, voxel_depth, _, _) = octree.get_node(pos, None);
-    //     // if voxel_depth < 20 {
-    //     //     octree.subdivide(voxel_index, 0b10110111, true, voxel_depth + 1);
-    //     // }
-
-    //     let (cpu_octree_node, _, _, _) = cpu_octree.get_node(pos, Some(voxel_depth));
-
-    //     let tnipt = cpu_octree.nodes[cpu_octree_node];
-    //     if tnipt < octree::VOXEL_OFFSET {
-    //         let mask = cpu_octree.get_node_mask(tnipt as usize);
-    //         octree.subdivide(voxel_index, mask, true, voxel_depth + 1);
-    //     }
-    // }
-
-    // pub fn unsubdivide_oct
 }

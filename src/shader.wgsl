@@ -3,6 +3,7 @@ struct Uniforms {
     camera_inverse: mat4x4<f32>;
     dimensions: vec4<f32>;
     sun_dir: vec4<f32>;
+    max_depth: u32;
     show_steps: bool;
     show_hits: bool;
     shadows: bool;
@@ -237,7 +238,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray);
-    if (hit.hit && (n.data[hit.value] & 15u) < 15u && hit.depth < 20u) {
+    if (hit.hit && (n.data[hit.value] & 15u) < 15u && hit.depth < u.max_depth) {
         n.data[hit.value] = n.data[hit.value] + 1u;
 
         if ((n.data[hit.value] & 15u) > 4u) {
