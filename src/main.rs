@@ -162,9 +162,7 @@ unsafe impl bytemuck::Pod for CUniforms {}
 
 impl CUniforms {
     fn new(max_depth: u32) -> Self {
-        Self {
-            max_depth,
-        }
+        Self { max_depth }
     }
 }
 

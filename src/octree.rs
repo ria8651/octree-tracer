@@ -14,16 +14,21 @@ pub struct Octree {
     pub nodes: Vec<u32>,
     // stays on cpu
     pub positions: Vec<Vector3<f32>>,
+    pub hole_stack: Vec<usize>,
 }
 
 impl Octree {
     pub fn new(mask: u8) -> Self {
         let nodes = Vec::new();
         let positions = Vec::new();
-        // le empty voxel
-        // positions.push(Vector3::zero());
+        let hole_stack = Vec::new();
 
-        let mut octree = Self { nodes, positions };
+        let mut octree = Self {
+            nodes,
+            positions,
+            hole_stack,
+        };
+
         octree.add_voxels(mask, Vector3::zero(), 1);
         octree
     }
@@ -38,11 +43,10 @@ impl Octree {
             let new_pos = voxel_pos + Octree::pos_offset(i, depth);
             if mask >> i & 1 != 0 {
                 self.nodes.push(create_voxel(1));
-                self.positions.push(new_pos);
             } else {
                 self.nodes.push(create_voxel(0));
-                self.positions.push(new_pos);
             }
+            self.positions.push(new_pos);
         }
     }
 
@@ -51,18 +55,35 @@ impl Octree {
             panic!("Node already subdivided!");
         }
 
-        // Turn voxel into node
-        self.nodes[node] = create_node(self.nodes.len() as u32);
+        let pos = self.positions[node];
+        if let Some(index) = self.hole_stack.pop() {
+            self.nodes[node] = create_node(index);
 
-        self.add_voxels(mask, self.positions[node], depth);
+            for i in 0..8 {
+                let new_pos = pos + Octree::pos_offset(i, depth);
+                let child_index = index + i;
+                if mask >> i & 1 != 0 {
+                    self.nodes[child_index] = create_voxel(1);
+                } else {
+                    self.nodes[child_index] = create_voxel(0);
+                }
+                self.positions[child_index] = new_pos;
+            }
+        } else {
+            self.nodes[node] = create_node(self.nodes.len());
+
+            self.add_voxels(mask, pos, depth);
+        };
     }
 
     pub fn unsubdivide(&mut self, node: usize) {
-        let tnipt = self.nodes[node];
+        let tnipt = self.get_node(node);
         if tnipt >= VOXEL_OFFSET {
-            println!("Node not subdivided!");
+            println!("Node {} not subdivided!", node);
             return;
         }
+
+        self.hole_stack.push(tnipt as usize);
 
         let pos = self.positions[node];
         if pos == Vector3::zero() {
@@ -115,35 +136,6 @@ impl Octree {
         }
     }
 
-    // #[allow(dead_code)]
-    // pub fn fill_voxel_positions(&mut self) {
-    // self.voxel_positions = vec![Vector3::zero(); self.voxels.len()];
-
-    //     let mut stack = Vec::new();
-    //     for child_index in 0..8 {
-    //         let child_depth = 1;
-    //         let child_pos = Octree::pos_offset(child_index, child_depth);
-    //         stack.push((child_index, child_depth, child_pos));
-    //     }
-    //     while let Some((node_index, depth, pos)) = stack.pop() {
-    //         let tnipt = self.nodes[node_index as usize];
-    //         if tnipt >= VOXEL_OFFSET {
-    //             let voxel_index = tnipt - VOXEL_OFFSET;
-    //             if voxel_index == 0 {
-    //                 continue;
-    //             }
-    // self.voxel_positions[voxel_index as usize] = pos;
-    //         } else {
-    //             for child_index in 0..8 {
-    //                 let new_index = tnipt as usize + child_index;
-    //                 let new_depth = depth + 1;
-    //                 let new_pos = pos + Octree::pos_offset(child_index, new_depth);
-    //                 stack.push((new_index, new_depth, new_pos));
-    //             }
-    //         }
-    //     }
-    // }
-
     /// Takes a pointer to the first child NOT to the parent
     pub fn get_node_mask(&self, node: usize) -> u8 {
         let mut mask = 0;
@@ -154,6 +146,39 @@ impl Octree {
         }
         mask
     }
+
+    // // Gonna use hole filling instead for now
+    // // Reallocates and rebuilds the entire octree
+    // pub fn rebuild(&mut self) {
+    //     let mut new_octree = Octree::new(0);
+
+    //     use std::collections::VecDeque;
+    //     let mut queue = VecDeque::new();
+
+    //     for child_index in 0..8 {
+    //         let child_depth = 1;
+    //         let child_pos = Octree::pos_offset(child_index, child_depth);
+    //         queue.push_back((child_index, child_depth, child_pos));
+    //     }
+
+    //     while let Some((node_index, depth, pos)) = queue.pop_front() {
+    //         let tnipt = self.nodes[node_index as usize];
+    //         if tnipt >= VOXEL_OFFSET {
+    //             let voxel_index = tnipt - VOXEL_OFFSET;
+    //             if voxel_index == 0 {
+    //                 continue;
+    //             }
+    //             self.voxel_positions[voxel_index as usize] = pos;
+    //         } else {
+    //             for child_index in 0..8 {
+    //                 let new_index = tnipt as usize + child_index;
+    //                 let new_depth = depth + 1;
+    //                 let new_pos = pos + Octree::pos_offset(child_index, new_depth);
+    //                 stack.push((new_index, new_depth, new_pos));
+    //             }
+    //         }
+    //     }
+    // }
 
     pub fn expanded(&self, size: usize) -> Vec<u32> {
         let mut nodes = self.nodes.clone();
@@ -176,8 +201,8 @@ impl Octree {
     }
 }
 
-fn create_node(value: u32) -> u32 {
-    value << 4
+fn create_node(value: usize) -> u32 {
+    (value as u32) << 4
 }
 
 fn create_voxel(value: u32) -> u32 {

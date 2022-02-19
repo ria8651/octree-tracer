@@ -4,7 +4,12 @@ use super::*;
 pub const MAX_SUBDIVISIONS_PER_FRAME: usize = 1024000;
 pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 1024000;
 
-pub fn process_subdivision(compute: &mut Compute, render: &mut Render, octree: &mut Octree, cpu_octree: &Octree) {
+pub fn process_subdivision(
+    compute: &mut Compute,
+    render: &mut Render,
+    octree: &mut Octree,
+    cpu_octree: &Octree,
+) {
     let slice = compute.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 

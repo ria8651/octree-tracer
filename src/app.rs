@@ -100,7 +100,12 @@ impl App {
             self.compute.update(&mut self.render, &self.octree);
 
             process_unsubdivision(&mut self.compute, &mut self.render, &mut self.octree);
-            process_subdivision(&mut self.compute, &mut self.render, &mut self.octree, &mut self.cpu_octree);
+            process_subdivision(
+                &mut self.compute,
+                &mut self.render,
+                &mut self.octree,
+                &mut self.cpu_octree,
+            );
 
             // Write octree to gpu
             let nodes = self.octree.raw_data();
@@ -123,10 +128,12 @@ impl App {
             0.0
         };
 
+        let hole_percentage =
+            100.0 * (8.0 * self.octree.hole_stack.len() as f32) / self.octree.nodes.len() as f32;
+
         egui::Window::new("Info").show(&self.render.egui_platform.context(), |ui| {
             ui.label(format!("FPS: {:.0}", fps));
-            // let mut max_depth = 0;
-            // ui.add(egui::Slider::new(&mut max_depth, 1..=16).text("Max depth"));
+
             if ui.button("Open File").clicked() {
                 let path = native_dialog::FileDialog::new()
                     .add_filter("Magica Voxel RSVO File", &["rsvo"])
@@ -203,9 +210,11 @@ impl App {
             ui.checkbox(&mut self.render.uniforms.pause_adaptive, "Pause adaptive");
             ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.0..=3.0).text("Misc"));
             ui.checkbox(&mut self.render.uniforms.misc_bool, "Misc");
+
             ui.label(format!(
-                "Nodes: {:.2} million",
-                self.octree.nodes.len() as f32 / 1000000.0
+                "Nodes: {:.2} million ({:.0}% holes)",
+                self.octree.nodes.len() as f32 / 1000000.0,
+                hole_percentage,
             ));
         });
     }
