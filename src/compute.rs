@@ -5,12 +5,15 @@ const DISPATCH_SIZE_Y: u32 = 256;
 
 pub struct Compute {
     compute_pipeline: wgpu::ComputePipeline,
+    c_uniforms: CUniforms,
+    c_uniform_buffer: wgpu::Buffer,
+    pub subdivision_buffer: wgpu::Buffer,
     pub unsubdivision_buffer: wgpu::Buffer,
     compute_bind_group: wgpu::BindGroup,
 }
 
 impl Compute {
-    pub fn new(render: &Render) -> Self {
+    pub fn new(render: &Render, max_depth: u32) -> Self {
         let shader = render
             .device
             .create_shader_module(&wgpu::ShaderModuleDescriptor {
@@ -20,6 +23,15 @@ impl Compute {
                 ),
             });
 
+        let c_uniforms = CUniforms::new(max_depth);
+        let c_uniform_buffer = render.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[c_uniforms]),
+            usage: wgpu::BufferUsages::UNIFORM
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::COPY_SRC,
+        });
+
         let compute_pipeline =
             render
                 .device
@@ -28,6 +40,17 @@ impl Compute {
                     layout: None,
                     module: &shader,
                     entry_point: "main",
+                });
+
+        let subdivision_buffer =
+            render
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(&[0u32; MAX_SUBDIVISIONS_PER_FRAME]),
+                    usage: wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::COPY_DST
+                        | wgpu::BufferUsages::MAP_READ,
                 });
 
         let unsubdivision_buffer =
@@ -47,10 +70,18 @@ impl Compute {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: render.node_buffer.as_entire_binding(),
+                    resource: c_uniform_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
+                    resource: render.node_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: subdivision_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
                     resource: unsubdivision_buffer.as_entire_binding(),
                 },
             ],
@@ -58,6 +89,9 @@ impl Compute {
 
         Self {
             compute_pipeline,
+            c_uniforms,
+            c_uniform_buffer,
+            subdivision_buffer,
             unsubdivision_buffer,
             compute_bind_group,
         }
@@ -84,5 +118,11 @@ impl Compute {
         }
 
         render.queue.submit(Some(encoder.finish()));
+
+        render.queue.write_buffer(
+            &self.c_uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[self.c_uniforms]),
+        );
     }
 }

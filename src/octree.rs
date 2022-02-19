@@ -60,7 +60,8 @@ impl Octree {
     pub fn unsubdivide(&mut self, node: usize) {
         let tnipt = self.nodes[node];
         if tnipt >= VOXEL_OFFSET {
-            panic!("Node not subdivided!");
+            println!("Node not subdivided!");
+            return;
         }
 
         let pos = self.positions[node];
@@ -82,6 +83,7 @@ impl Octree {
             }
         }
     }
+
     /// Returns (index, depth, pos)
     pub fn find_voxel(
         &self,

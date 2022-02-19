@@ -151,6 +151,23 @@ impl Uniforms {
     }
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Zeroable)]
+pub struct CUniforms {
+    max_depth: u32,
+}
+
+// For bool
+unsafe impl bytemuck::Pod for CUniforms {}
+
+impl CUniforms {
+    fn new(max_depth: u32) -> Self {
+        Self {
+            max_depth,
+        }
+    }
+}
+
 pub struct Character {
     pos: Point3<f32>,
     look: Vector3<f32>,

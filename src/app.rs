@@ -39,7 +39,7 @@ impl App {
         let octree = Octree::new(mask);
 
         let render = Render::new(window, &octree, octree_depth).await;
-        let compute = Compute::new(&render);
+        let compute = Compute::new(&render, octree_depth);
 
         let app = Self {
             octree,
@@ -100,7 +100,7 @@ impl App {
             self.compute.update(&mut self.render, &self.octree);
 
             process_unsubdivision(&mut self.compute, &mut self.render, &mut self.octree);
-            process_subdivision(&mut self.render, &mut self.octree, &mut self.cpu_octree);
+            process_subdivision(&mut self.compute, &mut self.render, &mut self.octree, &mut self.cpu_octree);
 
             // Write octree to gpu
             let nodes = self.octree.raw_data();

@@ -4,8 +4,8 @@ use super::*;
 pub const MAX_SUBDIVISIONS_PER_FRAME: usize = 1024000;
 pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 1024000;
 
-pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree: &Octree) {
-    let slice = render.subdivision_buffer.slice(..);
+pub fn process_subdivision(compute: &mut Compute, render: &mut Render, octree: &mut Octree, cpu_octree: &Octree) {
+    let slice = compute.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
     render.device.poll(wgpu::Maintain::Wait);
@@ -37,9 +37,10 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
             if tnipt < VOXEL_OFFSET {
                 let mask = cpu_octree.get_node_mask(tnipt as usize);
                 octree.subdivide(node_index, mask, voxel_depth + 1);
-            } else {
-                panic!("Tried to subdivide bottom level voxel!");
             }
+            // else {
+            //     panic!("Tried to subdivide bottom level voxel!");
+            // }
 
             if voxel_index != node_index || voxel_pos != pos {
                 panic!("Incorrect voxel position!");
@@ -49,7 +50,7 @@ pub fn process_subdivision(render: &mut Render, octree: &mut Octree, cpu_octree:
         }
 
         drop(data);
-        render.subdivision_buffer.unmap();
+        compute.subdivision_buffer.unmap();
     } else {
         panic!("Failed to run get subdivision buffer!")
     }

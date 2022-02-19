@@ -10,7 +10,6 @@ pub struct Render {
     pub uniforms: Uniforms,
     pub uniform_buffer: wgpu::Buffer,
     pub node_buffer: wgpu::Buffer,
-    pub subdivision_buffer: wgpu::Buffer,
     pub main_bind_group: wgpu::BindGroup,
     pub previous_frame_time: Option<f64>,
     pub egui_platform: egui_winit_platform::Platform,
@@ -88,14 +87,6 @@ impl Render {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        let subdivision_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(&[0u32; MAX_SUBDIVISIONS_PER_FRAME]),
-            usage: wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::MAP_READ,
-        });
-
         let main_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -119,16 +110,6 @@ impl Render {
                         },
                         count: None,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
                 ],
                 label: Some("main_bind_group_layout"),
             });
@@ -143,10 +124,6 @@ impl Render {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: node_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: subdivision_buffer.as_entire_binding(),
                 },
             ],
             label: Some("uniform_bind_group"),
@@ -221,7 +198,6 @@ impl Render {
             uniforms,
             uniform_buffer,
             node_buffer,
-            subdivision_buffer,
             main_bind_group,
             previous_frame_time,
             egui_platform,

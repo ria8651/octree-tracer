@@ -25,8 +25,6 @@ struct AtomicU32s {
 var<uniform> u: Uniforms;
 [[group(0), binding(1)]]
 var<storage, read_write> n: U32s;
-[[group(0), binding(2)]]
-var<storage, read_write> s: AtomicU32s;
 
 
 let VOXEL_OFFSET = 134217728u;
@@ -254,16 +252,6 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray, true);
-    if (
-        hit.hit && 
-        (n.data[hit.value] & 15u) >= 4u && 
-        hit.depth < u.max_depth && 
-        node(hit.value) >= VOXEL_OFFSET
-    ) {
-        let index = atomicAdd(&s.counter, 1u);
-        s.data[index] = hit.value;
-    }
-
     // output_colour = vec3<f32>(hit.pos * 0.5 + 0.5);
     if (u.show_steps) {
         output_colour = vec3<f32>(f32(hit.steps) / 64.0);
@@ -278,7 +266,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
                 var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
 
                 if (u.shadows) {
-                    let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir), false);
+                    let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir), true);
                     if (shadow_hit.hit) {
                         diffuse = 0.0;
                     }
