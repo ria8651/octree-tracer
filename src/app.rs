@@ -154,12 +154,12 @@ impl App {
                             self.octree = Octree::new(mask);
 
                             let nodes = self.octree.raw_data();
-
                             self.render.queue.write_buffer(
                                 &self.render.node_buffer,
                                 0,
                                 bytemuck::cast_slice(&nodes),
                             );
+
                             self.render.uniforms.max_depth = self.settings.octree_depth;
                             self.settings.error_string = "".to_string();
                         }
