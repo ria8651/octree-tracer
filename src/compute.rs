@@ -100,7 +100,7 @@ impl Compute {
         }
     }
 
-    pub fn update(&self, render: &Render, octree: &Octree) {
+    pub fn update(&mut self, render: &Render, octree: &Octree) {
         let iterations = octree.nodes.len();
         let dispatch_size_x =
             (iterations as f32 / WORK_GROUP_SIZE as f32 / DISPATCH_SIZE_Y as f32).ceil() as u32;
@@ -120,12 +120,13 @@ impl Compute {
             compute_pass.dispatch(dispatch_size_x, DISPATCH_SIZE_Y, 1);
         }
 
-        render.queue.submit(Some(encoder.finish()));
-
+        self.c_uniforms.node_length = octree.nodes.len() as u32;
         render.queue.write_buffer(
             &self.c_uniform_buffer,
             0,
             bytemuck::cast_slice(&[self.c_uniforms]),
         );
+
+        render.queue.submit(Some(encoder.finish()));
     }
 }

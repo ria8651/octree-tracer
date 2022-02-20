@@ -6,6 +6,7 @@ struct AtomicU32s {
     data: [[stride(4)]] array<u32>;
 };
 struct CUniforms {
+    node_length: u32;
     max_depth: u32;
 };
 
@@ -36,10 +37,10 @@ fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
     }
 
     let counter = node & 15u;
-    if (counter == 0u && (node >> 4u) < VOXEL_OFFSET) {
+    if (counter == 0u && (node >> 4u) < VOXEL_OFFSET && id < u.node_length) {
         let index = atomicAdd(&us.counter, 1u);
         us.data[index] = id;
-    } else if (counter >= 4u && (node >> 4u) > VOXEL_OFFSET) {
+    } else if (counter >= 4u && (node >> 4u) > VOXEL_OFFSET && id < u.node_length) {
         let index = atomicAdd(&s.counter, 1u);
         s.data[index] = id;
     }

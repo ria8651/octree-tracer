@@ -99,13 +99,13 @@ impl App {
         if !self.render.uniforms.pause_adaptive {
             self.compute.update(&mut self.render, &self.octree);
 
-            process_unsubdivision(&mut self.compute, &mut self.render, &mut self.octree);
             process_subdivision(
                 &mut self.compute,
                 &mut self.render,
                 &mut self.octree,
                 &mut self.cpu_octree,
             );
+            process_unsubdivision(&mut self.compute, &mut self.render, &mut self.octree);
 
             // Write octree to gpu
             let nodes = self.octree.raw_data();

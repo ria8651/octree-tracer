@@ -154,6 +154,7 @@ impl Uniforms {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Zeroable)]
 pub struct CUniforms {
+    node_length: u32,
     max_depth: u32,
 }
 
@@ -162,7 +163,10 @@ unsafe impl bytemuck::Pod for CUniforms {}
 
 impl CUniforms {
     fn new(max_depth: u32) -> Self {
-        Self { max_depth }
+        Self {
+            node_length: 0,
+            max_depth,
+        }
     }
 }
 
