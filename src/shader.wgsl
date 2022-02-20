@@ -1,3 +1,4 @@
+// Should be same as main.rs:Unifroms
 struct Uniforms {
     camera: mat4x4<f32>;
     camera_inverse: mat4x4<f32>;
@@ -22,9 +23,9 @@ struct AtomicU32s {
 };
 
 [[group(0), binding(0)]]
-var<uniform> u: Uniforms;
+var<uniform> u: Uniforms; // uniforms
 [[group(0), binding(1)]]
-var<storage, read_write> n: U32s;
+var<storage, read_write> n: U32s; // nodes
 
 
 let VOXEL_OFFSET = 134217728u;
@@ -252,7 +253,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     var ray = Ray(pos.xyz, dir.xyz);
 
     let hit = octree_ray(ray, true);
-    // output_colour = vec3<f32>(hit.pos * 0.5 + 0.5);
+    // output_colour = vec3<f32>(hit.pos);
     if (u.show_steps) {
         output_colour = vec3<f32>(f32(hit.steps) / 64.0);
     } else {
@@ -272,7 +273,8 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
                     }
                 }
 
-                let colour = vec3<f32>(0.0, 1.0, 0.0);
+                let value = node(hit.value) - VOXEL_OFFSET;
+                let colour = vec3<f32>(unpack_u8(value).yzw) / 255.0;
                 output_colour = (ambient + diffuse) * colour;
             }
         } else {

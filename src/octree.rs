@@ -42,9 +42,9 @@ impl Octree {
         for i in 0..8 {
             let new_pos = voxel_pos + Octree::pos_offset(i, depth);
             if mask >> i & 1 != 0 {
-                self.nodes.push(create_voxel(1));
+                self.nodes.push(create_voxel(255, 50, 50));
             } else {
-                self.nodes.push(create_voxel(0));
+                self.nodes.push(create_voxel(0, 0, 0));
             }
             self.positions.push(new_pos);
         }
@@ -63,9 +63,9 @@ impl Octree {
                 let new_pos = pos + Octree::pos_offset(i, depth);
                 let child_index = index + i;
                 if mask >> i & 1 != 0 {
-                    self.nodes[child_index] = create_voxel(1);
+                    self.nodes[child_index] = create_voxel(50, 255, 50);
                 } else {
-                    self.nodes[child_index] = create_voxel(0);
+                    self.nodes[child_index] = create_voxel(0, 0, 0);
                 }
                 self.positions[child_index] = new_pos;
             }
@@ -90,14 +90,14 @@ impl Octree {
             panic!("Tried to unsubdivide a node without position!");
         }
 
-        self.nodes[node] = create_voxel(1);
+        self.nodes[node] = create_voxel(50, 50, 255);
     }
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, _: u32, depth: u32) {
         loop {
             let (node, node_depth, _) = self.find_voxel(pos, None);
             if depth == node_depth {
-                self.nodes[node] = create_voxel(1);
+                self.nodes[node] = create_voxel(255, 255, 50);
                 return;
             } else {
                 self.subdivide(node, 0x00000000, node_depth + 1);
@@ -205,8 +205,10 @@ fn create_node(value: usize) -> u32 {
     (value as u32) << 4
 }
 
-fn create_voxel(value: u32) -> u32 {
-    (VOXEL_OFFSET + value) << 4
+// 0, 0, 0 is empty
+fn create_voxel(r: u8, g: u8, b: u8) -> u32 {
+    let colour = (r as u32) << 16 | (g as u32) << 8 | b as u32;
+    (VOXEL_OFFSET + colour) << 4
 }
 
 #[allow(dead_code)]
@@ -311,7 +313,7 @@ fn load_octree(data: &[u8], octree_depth: u32) -> Result<Octree, String> {
                 let child_mask = data[data_start + data_index];
                 octree.subdivide(node_index, child_mask, 0);
             } else {
-                octree.nodes[node_index] = create_voxel(1);
+                octree.nodes[node_index] = create_voxel(50, 255, 50);
             }
 
             data_index += 1;

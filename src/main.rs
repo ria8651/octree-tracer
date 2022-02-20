@@ -152,14 +152,11 @@ impl Uniforms {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct CUniforms {
     node_length: u32,
     max_depth: u32,
 }
-
-// For bool
-unsafe impl bytemuck::Pod for CUniforms {}
 
 impl CUniforms {
     fn new(max_depth: u32) -> Self {
