@@ -30,9 +30,8 @@ impl App {
             Err(_) => defualt_octree,
         };
 
-        // let mask = cpu_octree.get_node_mask(0);
-        // let octree = Octree::new(mask);
-        let octree = cpu_octree.to_octree();
+        let mask = cpu_octree.get_node_mask(0);
+        let octree = Octree::new(mask);
 
         let render = Render::new(window, &octree, octree_depth).await;
         let compute = Compute::new(&render, octree_depth);
@@ -99,26 +98,31 @@ impl App {
         self.render
             .update(time, &mut self.settings, &self.character);
 
-        // if !self.render.uniforms.pause_adaptive {
-        //     self.compute.update(&mut self.render, &self.octree);
+        if !self.render.uniforms.pause_adaptive {
+            self.compute.update(&mut self.render, &self.octree);
 
-        //     process_subdivision(
-        //         &mut self.compute,
-        //         &mut self.render,
-        //         &mut self.octree,
-        //         &mut self.cpu_octree,
-        //     );
-        //     process_unsubdivision(&mut self.compute, &mut self.render, &mut self.octree);
+            process_subdivision(
+                &mut self.compute,
+                &mut self.render,
+                &mut self.octree,
+                &mut self.cpu_octree,
+            );
+            process_unsubdivision(
+                &mut self.compute,
+                &mut self.render,
+                &mut self.octree,
+                &self.cpu_octree,
+            );
 
-        //     // Write octree to gpu
-        //     let nodes = self.octree.raw_data();
+            // Write octree to gpu
+            let nodes = self.octree.raw_data();
 
-        //     self.render.queue.write_buffer(
-        //         &self.render.node_buffer,
-        //         0,
-        //         bytemuck::cast_slice(&nodes),
-        //     );
-        // }
+            self.render.queue.write_buffer(
+                &self.render.node_buffer,
+                0,
+                bytemuck::cast_slice(&nodes),
+            );
+        }
     }
 
     pub fn gui(&mut self, time: f64) {
@@ -211,7 +215,11 @@ impl App {
             ui.checkbox(&mut self.render.uniforms.show_hits, "Show ray hits");
             ui.checkbox(&mut self.render.uniforms.shadows, "Shadows");
             ui.checkbox(&mut self.render.uniforms.pause_adaptive, "Pause adaptive");
-            ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.00000001..=10.0).text("Misc").logarithmic(true));
+            ui.add(
+                egui::Slider::new(&mut self.render.uniforms.misc_value, 0.00000001..=10.0)
+                    .text("Misc")
+                    .logarithmic(true),
+            );
             ui.checkbox(&mut self.render.uniforms.misc_bool, "Misc");
 
             ui.label(format!(

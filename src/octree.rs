@@ -105,7 +105,7 @@ impl Octree {
             panic!("Tried to unsubdivide a node without position!");
         }
 
-        self.nodes[node] = Voxel::new(50, 50, 255).to_value();
+        self.nodes[node] = Voxel::new(255, 0, 0).to_value();
     }
 
     /// Returns (index, depth, pos)

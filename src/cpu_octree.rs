@@ -29,9 +29,9 @@ impl CpuOctree {
             if (mask >> i) & 1 != 0 {
                 self.nodes.push(Node::new(
                     create_voxel(
-                        ((mask & 0b10111001) % 4) * 85,
-                        ((mask & 0b00101001) % 7) * 42,
-                        ((mask & 0b10100101) % 3) * 128,
+                        ((mask & 0b10111001) % 4) * 85 + 1,
+                        ((mask & 0b00101001) % 7) * 42 + 1,
+                        ((mask & 0b10100101) % 3) * 128 + 1,
                     ),
                     0,
                 ));
@@ -92,7 +92,7 @@ impl CpuOctree {
                 return;
             } else {
                 self.nodes[node].pointer = self.nodes.len() as u32;
-                self.add_voxels(0x00000000);
+                self.add_voxels(255);
             }
         }
     }
@@ -181,7 +181,7 @@ impl CpuOctree {
             return Err("Voxel model size is not a power of 2!".to_string());
         }
 
-        let mut octree = CpuOctree::new(0);
+        let mut octree = CpuOctree::new(255);
         for voxel in &vox_data.models[0].voxels {
             let colour = vox_data.palette[voxel.i as usize].to_le_bytes();
             let mut pos = Vector3::new(
@@ -199,6 +199,7 @@ impl CpuOctree {
         return Ok(octree);
     }
 
+    #[allow(dead_code)]
     pub fn to_octree(&self) -> Octree {
         let mut octree = Octree {
             nodes: Vec::new(),

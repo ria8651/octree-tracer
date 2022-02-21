@@ -61,7 +61,12 @@ pub fn process_subdivision(
     }
 }
 
-pub fn process_unsubdivision(compute: &mut Compute, render: &mut Render, octree: &mut Octree) {
+pub fn process_unsubdivision(
+    compute: &mut Compute,
+    render: &mut Render,
+    octree: &mut Octree,
+    cpu_octree: &CpuOctree,
+) {
     let slice = compute.unsubdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
@@ -79,7 +84,14 @@ pub fn process_unsubdivision(compute: &mut Compute, render: &mut Render, octree:
             println!("Processing {} unsubdivisions", len);
         }
         for i in 1..=len {
-            octree.unsubdivide(result[i] as usize);
+            let node_index = result[i] as usize;
+            octree.unsubdivide(node_index);
+
+            let pos = octree.positions[node_index];
+            let (voxel_index, voxel_depth, voxel_pos) = octree.find_voxel(pos, None);
+            let (cpu_index, _, cpu_pos) = cpu_octree.find_voxel(pos, Some(voxel_depth));
+
+            octree.nodes[node_index] = Voxel::from_value(cpu_octree.nodes[cpu_index].value).to_value();
 
             result[i] = 0;
         }
