@@ -24,14 +24,15 @@ impl App {
             error_string,
         };
 
-        let mut defualt_octree = CpuOctree::new(0b01011011);
+        let defualt_octree = CpuOctree::new(0b01011011);
         let cpu_octree = match CpuOctree::load_file(octree_path, octree_depth) {
             Ok(cpu_octree) => cpu_octree,
             Err(_) => defualt_octree,
         };
 
-        let mask = cpu_octree.get_node_mask(0);
-        let octree = Octree::new(mask);
+        // let mask = cpu_octree.get_node_mask(0);
+        // let octree = Octree::new(mask);
+        let octree = cpu_octree.to_octree();
 
         let render = Render::new(window, &octree, octree_depth).await;
         let compute = Compute::new(&render, octree_depth);
@@ -45,6 +46,13 @@ impl App {
             character,
             settings,
         };
+
+        // let pos = Vector3::new(-0.6, -0.6, -0.6);
+        // println!("{:?}", app.cpu_octree);
+        // println!("Lookup pos: {:?}", pos);
+        // println!("Node pos: {:?}", app.cpu_octree.find_voxel(pos, None));
+        // println!("{:?}", app.cpu_octree.get_node_mask(app.cpu_octree.nodes[1].pointer as usize));
+        // panic!();
 
         // app.octree.subdivide(0, 0b0100101, 2);
         // app.octree.subdivide(8, 0b1100101, 3);
@@ -91,26 +99,26 @@ impl App {
         self.render
             .update(time, &mut self.settings, &self.character);
 
-        if !self.render.uniforms.pause_adaptive {
-            self.compute.update(&mut self.render, &self.octree);
+        // if !self.render.uniforms.pause_adaptive {
+        //     self.compute.update(&mut self.render, &self.octree);
 
-            process_subdivision(
-                &mut self.compute,
-                &mut self.render,
-                &mut self.octree,
-                &mut self.cpu_octree,
-            );
-            process_unsubdivision(&mut self.compute, &mut self.render, &mut self.octree);
+        //     process_subdivision(
+        //         &mut self.compute,
+        //         &mut self.render,
+        //         &mut self.octree,
+        //         &mut self.cpu_octree,
+        //     );
+        //     process_unsubdivision(&mut self.compute, &mut self.render, &mut self.octree);
 
-            // Write octree to gpu
-            let nodes = self.octree.raw_data();
+        //     // Write octree to gpu
+        //     let nodes = self.octree.raw_data();
 
-            self.render.queue.write_buffer(
-                &self.render.node_buffer,
-                0,
-                bytemuck::cast_slice(&nodes),
-            );
-        }
+        //     self.render.queue.write_buffer(
+        //         &self.render.node_buffer,
+        //         0,
+        //         bytemuck::cast_slice(&nodes),
+        //     );
+        // }
     }
 
     pub fn gui(&mut self, time: f64) {

@@ -26,8 +26,15 @@ impl CpuOctree {
     pub fn add_voxels(&mut self, mask: u8) {
         // Add 8 new voxels
         for i in 0..8 {
-            if mask >> i & 1 != 0 {
-                self.nodes.push(Node::new(1, 0));
+            if (mask >> i) & 1 != 0 {
+                self.nodes.push(Node::new(
+                    create_voxel(
+                        ((mask & 0b10111001) % 4) * 85,
+                        ((mask & 0b00101001) % 7) * 42,
+                        ((mask & 0b10100101) % 3) * 128,
+                    ),
+                    0,
+                ));
             } else {
                 self.nodes.push(Node::new(0, 0));
             }
@@ -66,14 +73,28 @@ impl CpuOctree {
     }
 
     /// Takes a pointer to the first child NOT to the parent
-    pub fn get_node_mask(&self, node: usize) -> u8 {
-        let mut mask = 0;
+    pub fn get_node_mask(&self, node: usize) -> [Voxel; 8] {
+        let mut mask = [Voxel::new(0, 0, 0); 8];
         for i in 0..8 {
-            if self.nodes[node + i].pointer != 0 || self.nodes[node + i].value != 0 {
-                mask |= 1 << i;
-            }
+            mask[i] = Voxel::from_value(self.nodes[node + i].value);
         }
         mask
+    }
+
+    pub fn put_in_voxel(&mut self, pos: Vector3<f32>, value: u32, depth: u32) {
+        loop {
+            let (node, node_depth, _) = self.find_voxel(pos, None);
+            if depth == node_depth {
+                self.nodes[node] = Node::new(
+                    value,
+                    0,
+                );
+                return;
+            } else {
+                self.nodes[node].pointer = self.nodes.len() as u32;
+                self.add_voxels(0x00000000);
+            }
+        }
     }
 
     pub fn load_file(file: String, octree_depth: u32) -> Result<CpuOctree, String> {
@@ -122,16 +143,19 @@ impl CpuOctree {
 
         let node_end = node_counts[0..octree_depth as usize].iter().sum::<u32>() as usize;
 
-        let mut octree = CpuOctree::new(data[data_start]);
+        let mut cpu_octree = CpuOctree::new(data[data_start]);
         let mut data_index = 1;
         let mut node_index = 0;
-        while node_index < octree.nodes.len() {
-            if octree.nodes[node_index].value != 0 {
+        while node_index < cpu_octree.nodes.len() {
+            if cpu_octree.nodes[node_index].value != 0 {
                 if data_index < node_end {
                     let child_mask = data[data_start + data_index];
-                    octree.nodes[node_index].pointer = octree.nodes.len() as u32;
-                    octree.add_voxels(child_mask);
+                    cpu_octree.nodes[node_index].pointer = cpu_octree.nodes.len() as u32;
+                    cpu_octree.add_voxels(child_mask);
                 }
+                // else {
+                //     cpu_octree.nodes[node_index] = Node::new(create_voxel(255, 50, 50), 0);
+                // }
 
                 data_index += 1;
             }
@@ -139,8 +163,8 @@ impl CpuOctree {
             node_index += 1;
         }
 
-        // println!("SVO size: {}", octree.nodes.len());
-        Ok(octree)
+        // println!("SVO size: {}", cpu_octree.nodes.len());
+        Ok(cpu_octree)
     }
 
     fn load_vox(file: &[u8]) -> Result<CpuOctree, String> {
@@ -158,10 +182,48 @@ impl CpuOctree {
         }
 
         let mut octree = CpuOctree::new(0);
+        for voxel in &vox_data.models[0].voxels {
+            let colour = vox_data.palette[voxel.i as usize].to_le_bytes();
+            let mut pos = Vector3::new(
+                size as f32 - voxel.x as f32 - 1.0,
+                voxel.z as f32,
+                voxel.y as f32,
+            );
+            pos /= size as f32;
+            pos = pos * 2.0 - Vector3::new(1.0, 1.0, 1.0);
+
+            octree.put_in_voxel(pos, Voxel::new(colour[0], colour[1], colour[2]).to_cpu_value(), depth as u32);
+        }
 
         // println!("SVO size: {}", octree.nodes.len());
         return Ok(octree);
     }
+
+    pub fn to_octree(&self) -> Octree {
+        let mut octree = Octree {
+            nodes: Vec::new(),
+            positions: Vec::new(),
+            hole_stack: Vec::new(),
+        };
+
+        for i in 0..self.nodes.len() {
+            let node = self.nodes[i];
+            if node.pointer > 0 {
+                octree
+                    .nodes
+                    .push(octree::create_node(node.pointer as usize));
+            } else {
+                octree.nodes.push(Voxel::from_value(node.value).to_value());
+            }
+        }
+
+        octree
+    }
+}
+
+// 0, 0, 0 is empty
+fn create_voxel(r: u8, g: u8, b: u8) -> u32 {
+    (r as u32) << 16 | (g as u32) << 8 | b as u32
 }
 
 impl std::fmt::Debug for Node {

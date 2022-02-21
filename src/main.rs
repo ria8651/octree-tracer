@@ -22,8 +22,8 @@ use render::*;
 
 fn main() {
     // Defualt file path that only works on the terminal
-    let path = "files/sibenik.rsvo";
-    let octree_depth = 12;
+    let path = "files/monu9.vox";
+    let octree_depth = 5;
 
     env_logger::init();
     let event_loop = EventLoop::new();

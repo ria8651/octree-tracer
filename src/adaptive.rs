@@ -36,7 +36,7 @@ pub fn process_subdivision(
 
             let pos = octree.positions[node_index];
             let (voxel_index, voxel_depth, voxel_pos) = octree.find_voxel(pos, None);
-            let (cpu_index, _, _) = cpu_octree.find_voxel(pos, Some(voxel_depth));
+            let (cpu_index, _, cpu_pos) = cpu_octree.find_voxel(pos, Some(voxel_depth));
 
             let tnipt = cpu_octree.nodes[cpu_index];
             if tnipt.pointer > 0 {
@@ -47,7 +47,7 @@ pub fn process_subdivision(
             //     panic!("Tried to subdivide bottom level voxel!");
             // }
 
-            if voxel_index != node_index || voxel_pos != pos {
+            if voxel_index != node_index || voxel_pos != pos || cpu_pos != pos {
                 panic!("Incorrect voxel position!");
             }
 
