@@ -136,17 +136,6 @@ impl Octree {
         }
     }
 
-    /// Takes a pointer to the first child NOT to the parent
-    pub fn get_node_mask(&self, node: usize) -> u8 {
-        let mut mask = 0;
-        for i in 0..8 {
-            if self.get_node(node + i) != VOXEL_OFFSET {
-                mask |= 1 << i;
-            }
-        }
-        mask
-    }
-
     // // Gonna use hole filling instead for now
     // // Reallocates and rebuilds the entire octree
     // pub fn rebuild(&mut self) {
@@ -191,7 +180,7 @@ impl Octree {
         &self.nodes
     }
 
-    fn pos_offset(child_index: usize, depth: u32) -> Vector3<f32> {
+    pub fn pos_offset(child_index: usize, depth: u32) -> Vector3<f32> {
         let x = (child_index >> 2) & 1;
         let y = (child_index >> 1) & 1;
         let z = child_index & 1;
@@ -255,105 +244,4 @@ impl std::fmt::Debug for Octree {
 
         Ok(())
     }
-}
-
-pub fn load_file(file: String, octree_depth: u32) -> Result<Octree, String> {
-    let path = std::path::Path::new(&file);
-    let data = std::fs::read(path).map_err(|e| e.to_string())?;
-    use std::ffi::OsStr;
-    let octree = match path.extension().and_then(OsStr::to_str) {
-        Some("rsvo") => load_octree(&data, octree_depth)?,
-        Some("vox") => load_vox(&data)?,
-        _ => return Err("Unknown file type".to_string()),
-    };
-
-    // println!("{:?}", octree);
-    // panic!();
-
-    return Ok(octree);
-}
-
-// Models from https://github.com/ephtracy/voxel-model/tree/master/svo
-fn load_octree(data: &[u8], octree_depth: u32) -> Result<Octree, String> {
-    let top_level_start = 16;
-    let node_count_start = 20;
-
-    let top_level = data[top_level_start] as usize;
-
-    let data_start = node_count_start + 4 * (top_level + 1);
-
-    let mut node_counts = Vec::new();
-    for i in 0..(top_level + 1) {
-        let node_count = u32::from_be_bytes([
-            data[node_count_start + i * 4 + 3],
-            data[node_count_start + i * 4 + 2],
-            data[node_count_start + i * 4 + 1],
-            data[node_count_start + i * 4],
-        ]);
-
-        node_counts.push(node_count);
-    }
-
-    if octree_depth as usize > top_level {
-        return Err(format!(
-            "Octree depth ({}) is greater than top level ({})",
-            octree_depth, top_level
-        ));
-    }
-
-    let node_end = node_counts[0..octree_depth as usize].iter().sum::<u32>() as usize;
-
-    let mut octree = Octree::new(data[data_start]);
-
-    let mut data_index = 1;
-    let mut node_index = 0;
-    while node_index < octree.nodes.len() {
-        if octree.get_node(node_index) != VOXEL_OFFSET {
-            if data_index < node_end {
-                let child_mask = data[data_start + data_index];
-                octree.subdivide(node_index, child_mask, 0);
-            } else {
-                octree.nodes[node_index] = create_voxel(50, 255, 50);
-            }
-
-            data_index += 1;
-        }
-
-        node_index += 1;
-    }
-
-    println!("SVO size: {}", octree.nodes.len());
-    Ok(octree)
-}
-
-fn load_vox(file: &[u8]) -> Result<Octree, String> {
-    let vox_data = dot_vox::load_bytes(file)?;
-    let size = vox_data.models[0].size;
-    if size.x != size.y || size.x != size.z || size.y != size.z {
-        return Err("Voxel model is not a cube!".to_string());
-    }
-
-    let size = size.x as i32;
-
-    let depth = (size as f32).log2();
-    if depth != depth.floor() {
-        return Err("Voxel model size is not a power of 2!".to_string());
-    }
-
-    let mut octree = Octree::new(0x00000000);
-    for voxel in &vox_data.models[0].voxels {
-        // let colour = vox_data.palette[voxel.i as usize].to_le_bytes();
-        let mut pos = Vector3::new(
-            size as f32 - voxel.x as f32 - 1.0,
-            voxel.z as f32,
-            voxel.y as f32,
-        );
-        pos /= size as f32;
-        pos = pos * 2.0 - Vector3::new(1.0, 1.0, 1.0);
-
-        octree.put_in_voxel(pos, 1, depth as u32);
-    }
-
-    println!("SVO size: {}", octree.nodes.len());
-    return Ok(octree);
 }

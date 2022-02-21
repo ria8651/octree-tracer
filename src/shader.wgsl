@@ -226,7 +226,7 @@ fn octree_ray(r: Ray, primary: bool) -> HitInfo {
         normal = mask * -r_sign;
 
         let t_current = min(min(t_max.x, t_max.y), t_max.z);
-        voxel_pos = pos + dir * t_current - normal * 0.000001;
+        voxel_pos = pos + dir * t_current - normal * 0.0000002;
 
         if (!in_bounds(voxel_pos)) {
             return HitInfo(false, 0x20202000u, vec3<f32>(0.0), vec3<f32>(0.0), steps, voxel.depth);

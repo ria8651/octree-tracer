@@ -8,7 +8,7 @@ pub fn process_subdivision(
     compute: &mut Compute,
     render: &mut Render,
     octree: &mut Octree,
-    cpu_octree: &Octree,
+    cpu_octree: &CpuOctree,
 ) {
     let slice = compute.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
@@ -38,9 +38,9 @@ pub fn process_subdivision(
             let (voxel_index, voxel_depth, voxel_pos) = octree.find_voxel(pos, None);
             let (cpu_index, _, _) = cpu_octree.find_voxel(pos, Some(voxel_depth));
 
-            let tnipt = cpu_octree.get_node(cpu_index);
-            if tnipt < VOXEL_OFFSET {
-                let mask = cpu_octree.get_node_mask(tnipt as usize);
+            let tnipt = cpu_octree.nodes[cpu_index];
+            if tnipt.pointer > 0 {
+                let mask = cpu_octree.get_node_mask(tnipt.pointer as usize);
                 octree.subdivide(node_index, mask, voxel_depth + 1);
             }
             // else {

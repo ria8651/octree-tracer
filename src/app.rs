@@ -3,7 +3,7 @@ use winit::window::Window;
 
 pub struct App {
     pub octree: Octree,
-    pub cpu_octree: Octree,
+    pub cpu_octree: CpuOctree,
     pub render: Render,
     pub compute: Compute,
     pub input: Input,
@@ -24,13 +24,8 @@ impl App {
             error_string,
         };
 
-        let mut defualt_octree = Octree::new(0);
-        defualt_octree.put_in_voxel(Vector3::new(1.0, 1.0, 1.0), 1, 5);
-        defualt_octree.put_in_voxel(Vector3::new(0.0, 0.0, 0.0), 1, 3);
-        defualt_octree.put_in_voxel(Vector3::new(-1.0, -1.0, -1.0), 1, 3);
-        // println!("{:?}", defualt_octree);
-
-        let cpu_octree = match load_file(octree_path, octree_depth) {
+        let mut defualt_octree = CpuOctree::new(0b01011011);
+        let cpu_octree = match CpuOctree::load_file(octree_path, octree_depth) {
             Ok(cpu_octree) => cpu_octree,
             Err(_) => defualt_octree,
         };
@@ -142,7 +137,7 @@ impl App {
                     .unwrap();
 
                 match path {
-                    Some(path) => match load_file(
+                    Some(path) => match CpuOctree::load_file(
                         path.into_os_string().into_string().unwrap(),
                         self.settings.octree_depth,
                     ) {
@@ -208,7 +203,7 @@ impl App {
             ui.checkbox(&mut self.render.uniforms.show_hits, "Show ray hits");
             ui.checkbox(&mut self.render.uniforms.shadows, "Shadows");
             ui.checkbox(&mut self.render.uniforms.pause_adaptive, "Pause adaptive");
-            ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.0..=3.0).text("Misc"));
+            ui.add(egui::Slider::new(&mut self.render.uniforms.misc_value, 0.00000001..=10.0).text("Misc").logarithmic(true));
             ui.checkbox(&mut self.render.uniforms.misc_bool, "Misc");
 
             ui.label(format!(

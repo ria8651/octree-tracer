@@ -11,16 +11,18 @@ mod adaptive;
 mod app;
 mod compute;
 mod octree;
+mod cpu_octree;
 mod render;
 use adaptive::*;
 use app::*;
 use compute::*;
 use octree::*;
+use cpu_octree::*;
 use render::*;
 
 fn main() {
     // Defualt file path that only works on the terminal
-    let path = "files/dragon.rsvo";
+    let path = "files/sibenik.rsvo";
     let octree_depth = 12;
 
     env_logger::init();
