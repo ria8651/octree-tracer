@@ -30,7 +30,7 @@ impl CpuOctree {
         for i in 0..8 {
             if (mask >> i) & 1 != 0 {
                 self.nodes.push(Node::new(
-                    BLOCK_OFFSET + 1,
+                    BLOCK_OFFSET + 1 + (self.nodes.len() as u32 % 3),
                     create_voxel(
                         ((mask & 0b10111001) % 4) * 85 + 1,
                         ((mask & 0b00101001) % 7) * 42 + 1,

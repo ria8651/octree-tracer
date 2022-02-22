@@ -40,7 +40,9 @@ impl App {
         let blocks = vec![
             // The empty block
             CpuOctree::new(0),
+            CpuOctree::load_file("blocks/stone.vox".to_string(), 0).unwrap(),
             CpuOctree::load_file("blocks/grass.vox".to_string(), 0).unwrap(),
+            CpuOctree::load_file("blocks/glass.vox".to_string(), 0).unwrap(),
         ];
 
         let app = Self {
@@ -121,6 +123,7 @@ impl App {
                 &mut self.render,
                 &mut self.octree,
                 &self.cpu_octree,
+                &self.blocks,
             );
 
             // Write octree to gpu
