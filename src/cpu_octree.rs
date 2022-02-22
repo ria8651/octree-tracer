@@ -85,14 +85,11 @@ impl CpuOctree {
         loop {
             let (node, node_depth, _) = self.find_voxel(pos, None);
             if depth == node_depth {
-                self.nodes[node] = Node::new(
-                    value,
-                    0,
-                );
+                self.nodes[node] = Node::new(value, 0);
                 return;
             } else {
                 self.nodes[node].pointer = self.nodes.len() as u32;
-                self.add_voxels(255);
+                self.add_voxels(0);
             }
         }
     }
@@ -143,18 +140,18 @@ impl CpuOctree {
 
         let node_end = node_counts[0..octree_depth as usize].iter().sum::<u32>() as usize;
 
-        let mut cpu_octree = CpuOctree::new(data[data_start]);
+        let mut octree = CpuOctree::new(data[data_start]);
         let mut data_index = 1;
         let mut node_index = 0;
-        while node_index < cpu_octree.nodes.len() {
-            if cpu_octree.nodes[node_index].value != 0 {
+        while node_index < octree.nodes.len() {
+            if octree.nodes[node_index].value != 0 {
                 if data_index < node_end {
                     let child_mask = data[data_start + data_index];
-                    cpu_octree.nodes[node_index].pointer = cpu_octree.nodes.len() as u32;
-                    cpu_octree.add_voxels(child_mask);
+                    octree.nodes[node_index].pointer = octree.nodes.len() as u32;
+                    octree.add_voxels(child_mask);
                 }
                 // else {
-                //     cpu_octree.nodes[node_index] = Node::new(create_voxel(255, 50, 50), 0);
+                //     octree.nodes[node_index] = Node::new(create_voxel(255, 50, 50), 0);
                 // }
 
                 data_index += 1;
@@ -163,8 +160,10 @@ impl CpuOctree {
             node_index += 1;
         }
 
-        // println!("SVO size: {}", cpu_octree.nodes.len());
-        Ok(cpu_octree)
+        octree.generate_mip_tree();
+
+        println!("SVO size: {}", octree.nodes.len());
+        Ok(octree)
     }
 
     fn load_vox(file: &[u8]) -> Result<CpuOctree, String> {
@@ -181,7 +180,7 @@ impl CpuOctree {
             return Err("Voxel model size is not a power of 2!".to_string());
         }
 
-        let mut octree = CpuOctree::new(255);
+        let mut octree = CpuOctree::new(0);
         for voxel in &vox_data.models[0].voxels {
             let colour = vox_data.palette[voxel.i as usize].to_le_bytes();
             let mut pos = Vector3::new(
@@ -192,11 +191,85 @@ impl CpuOctree {
             pos /= size as f32;
             pos = pos * 2.0 - Vector3::new(1.0, 1.0, 1.0);
 
-            octree.put_in_voxel(pos, Voxel::new(colour[0], colour[1], colour[2]).to_cpu_value(), depth as u32);
+            octree.put_in_voxel(
+                pos,
+                Voxel::new(colour[0], colour[1], colour[2]).to_cpu_value(),
+                depth as u32,
+            );
         }
 
-        // println!("SVO size: {}", octree.nodes.len());
+        octree.generate_mip_tree();
+
+        println!("SVO size: {}", octree.nodes.len());
         return Ok(octree);
+    }
+
+    // This function assumes that the bottem level is filled with colours and overides all other colours
+    pub fn generate_mip_tree(&mut self) {
+        let mut voxels_in_each_level: Vec<Vec<usize>> = Vec::new();
+
+        use std::collections::VecDeque;
+        let mut queue = VecDeque::new();
+
+        for child_index in 0..8 {
+            let node = self.nodes[child_index];
+            if node.pointer > 0 {
+                queue.push_back((child_index, 1));
+            }
+        }
+
+        while let Some((node_index, depth)) = queue.pop_front() {
+            loop {
+                if let Some(level) = voxels_in_each_level.get_mut(depth as usize) {
+                    level.push(node_index);
+
+                    let node = self.nodes[node_index as usize];
+                    for child_index in 0..8 {
+                        let child_node = self.nodes[node.pointer as usize + child_index];
+                        if child_node.pointer > 0 {
+                            queue.push_back((node.pointer as usize + child_index, depth + 1));
+                        }
+                    }
+
+                    break;
+                } else {
+                    voxels_in_each_level.push(Vec::new());
+                }
+            }
+        }
+
+        // for i in 0..voxels_in_each_level.len() {
+        //     println!("Level {}: ({})", i, voxels_in_each_level[i].len());
+        //     // for j in 0..voxels_in_each_level[i].len() {
+        //     //     println!("  {}", voxels_in_each_level[i][j]);
+        //     // }
+        // }
+
+        for i in (1..voxels_in_each_level.len()).rev() {
+            for node_index in &voxels_in_each_level[i] {
+                // Average the colours of the 8 children
+                let node = self.nodes[*node_index as usize];
+                let mut colour = Vector3::new(0.0, 0.0, 0.0);
+                let mut divisor = 0.0;
+
+                for i in 0..8 {
+                    let child = self.nodes[node.pointer as usize + i];
+                    if child.value != 0 || child.pointer != 0 {
+                        let voxel = Voxel::from_value(child.value);
+                        colour += Vector3::new(voxel.r as f32, voxel.g as f32, voxel.b as f32);
+                        divisor += 1.0;
+                    }
+                }
+
+                colour /= divisor;
+
+                self.nodes[*node_index as usize].value =
+                    Voxel::new(colour.x as u8, colour.y as u8, colour.z as u8).to_cpu_value().max(1);
+            }
+        }
+
+        // println!("{:?}", self);
+        // panic!();
     }
 
     #[allow(dead_code)]
@@ -229,7 +302,8 @@ fn create_voxel(r: u8, g: u8, b: u8) -> u32 {
 
 impl std::fmt::Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "  Voxel: {}, Pointer: {}", self.value, self.pointer)
+        let voxel = Voxel::from_value(self.value);
+        write!(f, "  Voxel: ({}, {}, {}), Pointer: {}", voxel.r, voxel.g, voxel.b, self.pointer)
     }
 }
 
