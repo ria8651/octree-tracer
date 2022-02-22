@@ -47,20 +47,23 @@ pub fn process_subdivision(
                 let block_index = tnipt.pointer as usize - BLOCK_OFFSET as usize;
                 let block = &blocks[block_index];
 
-                let voxel_size = 2.0 / (1 << voxel_depth) as f32;
-                let block_pos = (pos % voxel_size) * 2.0 - Vector3::new(1.0, 1.0, 1.0);
-
-                let (block_index, _, _) =
-                    block.find_voxel(block_pos, Some(voxel_depth), None);
-                let tnipt = cpu_octree.nodes[block_index];
-
-                if tnipt.pointer < BLOCK_OFFSET {
-                    let mask = block.get_node_mask(tnipt.pointer as usize);
+                if voxel_depth == 12 {
+                    let mask = block.get_node_mask(0);
                     octree.subdivide(node_index, mask, voxel_depth + 1);
+                } else {
+                    let voxel_size = 2.0 / (1 << 13) as f32;
+                    let block_pos = (pos - cpu_pos) / voxel_size;
+
+                    let (block_index, _, _) =
+                        block.find_voxel(block_pos, Some(voxel_depth - 12), None);
+
+                    let tnipt = block.nodes[block_index];
+                    if tnipt.pointer < BLOCK_OFFSET {
+                        let mask = block.get_node_mask(tnipt.pointer as usize);
+                        octree.subdivide(node_index, mask, voxel_depth + 1);
+                    }
                 }
             }
-
-            // }
             // else {
             //     panic!("Tried to subdivide bottom level voxel!");
             // }
