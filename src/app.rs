@@ -25,8 +25,16 @@ impl App {
             error_string,
         };
 
+        let blocks = vec![
+            // The empty block
+            CpuOctree::new(0),
+            CpuOctree::load_file("blocks/stone.vox".to_string(), 0, None).unwrap(),
+            CpuOctree::load_file("blocks/grass.vox".to_string(), 0, None).unwrap(),
+            CpuOctree::load_file("blocks/glass.vox".to_string(), 0, None).unwrap(),
+        ];
+
         let defualt_octree = CpuOctree::new(0b01011011);
-        let cpu_octree = match CpuOctree::load_file(octree_path, octree_depth) {
+        let cpu_octree = match CpuOctree::load_file(octree_path, octree_depth, Some(&blocks)) {
             Ok(cpu_octree) => cpu_octree,
             Err(_) => defualt_octree,
         };
@@ -36,14 +44,6 @@ impl App {
 
         let render = Render::new(window, &octree, octree_depth).await;
         let compute = Compute::new(&render, octree_depth);
-
-        let blocks = vec![
-            // The empty block
-            CpuOctree::new(0),
-            CpuOctree::load_file("blocks/stone.vox".to_string(), 0).unwrap(),
-            CpuOctree::load_file("blocks/grass.vox".to_string(), 0).unwrap(),
-            CpuOctree::load_file("blocks/glass.vox".to_string(), 0).unwrap(),
-        ];
 
         let app = Self {
             octree,
@@ -164,6 +164,7 @@ impl App {
                     Some(path) => match CpuOctree::load_file(
                         path.into_os_string().into_string().unwrap(),
                         self.settings.octree_depth,
+                        Some(&self.blocks),
                     ) {
                         Ok(cpu_octree) => {
                             self.cpu_octree = cpu_octree;

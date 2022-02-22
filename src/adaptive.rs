@@ -38,7 +38,7 @@ pub fn process_subdivision(
             let pos = octree.positions[node_index];
             let (_, voxel_depth, _) = octree.find_voxel(pos, None);
             let (cpu_index, cpu_depth, cpu_pos) =
-                cpu_octree.find_voxel(pos, Some(voxel_depth), None);
+                cpu_octree.find_voxel(pos, Some(voxel_depth));
 
             let tnipt = cpu_octree.nodes[cpu_index];
             if tnipt.pointer < BLOCK_OFFSET {
@@ -56,7 +56,7 @@ pub fn process_subdivision(
                     let block_pos = (pos - cpu_pos) / voxel_size;
 
                     let (block_index, _, _) =
-                        block.find_voxel(block_pos, Some(voxel_depth - cpu_depth), None);
+                        block.find_voxel(block_pos, Some(voxel_depth - cpu_depth));
 
                     let tnipt = block.nodes[block_index];
                     if tnipt.pointer < BLOCK_OFFSET {
@@ -103,12 +103,12 @@ pub fn process_unsubdivision(
             let node_index = result[i] as usize;
             octree.unsubdivide(node_index);
 
-            let mut value = 0;
+            let mut value = Voxel::new(0, 0, 0);
 
             let pos = octree.positions[node_index];
             let (_, voxel_depth, _) = octree.find_voxel(pos, None);
             let (cpu_index, cpu_depth, cpu_pos) =
-                cpu_octree.find_voxel(pos, Some(voxel_depth), None);
+                cpu_octree.find_voxel(pos, Some(voxel_depth));
 
             let tnipt = cpu_octree.nodes[cpu_index];
             if tnipt.pointer < BLOCK_OFFSET {
@@ -124,13 +124,13 @@ pub fn process_unsubdivision(
                     let block_pos = (pos - cpu_pos) / voxel_size;
 
                     let (block_index, _, _) =
-                        block.find_voxel(block_pos, Some(voxel_depth - cpu_depth), None);
+                        block.find_voxel(block_pos, Some(voxel_depth - cpu_depth));
 
                     value = block.nodes[block_index].value;
                 }
             }
 
-            octree.nodes[node_index] = Voxel::from_value(value).to_value();
+            octree.nodes[node_index] = value.to_value();
 
             result[i] = 0;
         }
