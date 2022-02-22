@@ -4,6 +4,7 @@ use winit::window::Window;
 pub struct App {
     pub octree: Octree,
     pub cpu_octree: CpuOctree,
+    pub blocks: Vec<CpuOctree>,
     pub render: Render,
     pub compute: Compute,
     pub input: Input,
@@ -36,9 +37,16 @@ impl App {
         let render = Render::new(window, &octree, octree_depth).await;
         let compute = Compute::new(&render, octree_depth);
 
+        let blocks = vec![
+            // The empty block
+            CpuOctree::new(0),
+            CpuOctree::load_file("blocks/grass.vox".to_string(), 0).unwrap(),
+        ];
+
         let app = Self {
             octree,
             cpu_octree,
+            blocks,
             render,
             compute,
             input,
@@ -105,7 +113,8 @@ impl App {
                 &mut self.compute,
                 &mut self.render,
                 &mut self.octree,
-                &mut self.cpu_octree,
+                &self.cpu_octree,
+                &self.blocks,
             );
             process_unsubdivision(
                 &mut self.compute,

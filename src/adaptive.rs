@@ -9,6 +9,7 @@ pub fn process_subdivision(
     render: &mut Render,
     octree: &mut Octree,
     cpu_octree: &CpuOctree,
+    blocks: &Vec<CpuOctree>,
 ) {
     let slice = compute.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
@@ -36,20 +37,37 @@ pub fn process_subdivision(
 
             let pos = octree.positions[node_index];
             let (voxel_index, voxel_depth, voxel_pos) = octree.find_voxel(pos, None);
-            let (cpu_index, _, cpu_pos) = cpu_octree.find_voxel(pos, Some(voxel_depth));
+            let (cpu_index, _, cpu_pos) = cpu_octree.find_voxel(pos, Some(voxel_depth), None);
 
             let tnipt = cpu_octree.nodes[cpu_index];
-            if tnipt.pointer > 0 {
+            if tnipt.pointer < BLOCK_OFFSET {
                 let mask = cpu_octree.get_node_mask(tnipt.pointer as usize);
                 octree.subdivide(node_index, mask, voxel_depth + 1);
+            } else if tnipt.pointer > BLOCK_OFFSET {
+                let block_index = tnipt.pointer as usize - BLOCK_OFFSET as usize;
+                let block = &blocks[block_index];
+
+                let voxel_size = 2.0 / (1 << voxel_depth) as f32;
+                let block_pos = (pos % voxel_size) * 2.0 - Vector3::new(1.0, 1.0, 1.0);
+
+                let (block_index, _, _) =
+                    block.find_voxel(block_pos, Some(voxel_depth), None);
+                let tnipt = cpu_octree.nodes[block_index];
+
+                if tnipt.pointer < BLOCK_OFFSET {
+                    let mask = block.get_node_mask(tnipt.pointer as usize);
+                    octree.subdivide(node_index, mask, voxel_depth + 1);
+                }
             }
+
+            // }
             // else {
             //     panic!("Tried to subdivide bottom level voxel!");
             // }
 
-            if voxel_index != node_index || voxel_pos != pos || cpu_pos != pos {
-                panic!("Incorrect voxel position!");
-            }
+            // if voxel_index != node_index || voxel_pos != pos || cpu_pos != pos {
+            //     panic!("Incorrect voxel position!");
+            // }
 
             result[i] = 0;
         }
@@ -88,10 +106,11 @@ pub fn process_unsubdivision(
             octree.unsubdivide(node_index);
 
             let pos = octree.positions[node_index];
-            let (voxel_index, voxel_depth, voxel_pos) = octree.find_voxel(pos, None);
-            let (cpu_index, _, cpu_pos) = cpu_octree.find_voxel(pos, Some(voxel_depth));
+            let (_, voxel_depth, _) = octree.find_voxel(pos, None);
+            let (cpu_index, _, _) = cpu_octree.find_voxel(pos, Some(voxel_depth), None);
 
-            octree.nodes[node_index] = Voxel::from_value(cpu_octree.nodes[cpu_index].value).to_value();
+            octree.nodes[node_index] =
+                Voxel::from_value(cpu_octree.nodes[cpu_index].value).to_value();
 
             result[i] = 0;
         }

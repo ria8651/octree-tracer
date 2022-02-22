@@ -197,8 +197,6 @@ fn octree_ray(r: Ray, primary: bool) -> HitInfo {
     }
 
     let r_sign = sign(dir);
-    // let scale = f32(1u << depth) / 2.0;
-    // let voxel_size = 2.0 / f32(1u << depth);
 
     var voxel = Voxel(0u, vec3<f32>(0.0), 0u);
     var voxel_pos = pos;

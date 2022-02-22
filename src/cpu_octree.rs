@@ -1,13 +1,15 @@
 use super::*;
 
+pub const BLOCK_OFFSET: u32 = 2147483648;
+
 #[derive(Copy, Clone)]
 pub struct Node {
-    pub value: u32,
     pub pointer: u32,
+    pub value: u32,
 }
 
 impl Node {
-    fn new(value: u32, pointer: u32) -> Self {
+    fn new(pointer: u32, value: u32) -> Self {
         Node { value, pointer }
     }
 }
@@ -28,15 +30,15 @@ impl CpuOctree {
         for i in 0..8 {
             if (mask >> i) & 1 != 0 {
                 self.nodes.push(Node::new(
+                    BLOCK_OFFSET + 1,
                     create_voxel(
                         ((mask & 0b10111001) % 4) * 85 + 1,
                         ((mask & 0b00101001) % 7) * 42 + 1,
                         ((mask & 0b10100101) % 3) * 128 + 1,
                     ),
-                    0,
                 ));
             } else {
-                self.nodes.push(Node::new(0, 0));
+                self.nodes.push(Node::new(BLOCK_OFFSET, 0));
             }
         }
     }
@@ -46,6 +48,7 @@ impl CpuOctree {
         &self,
         pos: Vector3<f32>,
         max_depth: Option<u32>,
+        blocks: Option<Vec<CpuOctree>>,
     ) -> (usize, u32, Vector3<f32>) {
         let mut node_index = 0;
         let mut node_pos = Vector3::zero();
@@ -62,13 +65,26 @@ impl CpuOctree {
 
             node_pos += Octree::pos_offset(child_index, depth);
 
-            if self.nodes[node_index + child_index].pointer == 0
+            if self.nodes[node_index + child_index].pointer >= BLOCK_OFFSET
                 || depth == max_depth.unwrap_or(u32::MAX)
             {
                 return (node_index + child_index, depth, node_pos);
             }
 
             node_index = self.nodes[node_index + child_index].pointer as usize;
+            // let p = node_index + child_index;
+            // if depth == max_depth.unwrap_or(u32::MAX) {
+            //     return (p, depth, node_pos);
+            // } else if self.nodes[p].pointer >= BLOCK_OFFSET {
+            //     if let Some(blocks) = blocks {
+            //         let block = &blocks[(self.nodes[p].pointer - BLOCK_OFFSET) as usize];
+            //         return block.find_voxel(pos, max_depth, None);
+            //     } else {
+            //         return (p, depth, node_pos);
+            //     }
+            // }
+
+            // node_index = self.nodes[p].pointer as usize;
         }
     }
 
@@ -83,9 +99,9 @@ impl CpuOctree {
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, value: u32, depth: u32) {
         loop {
-            let (node, node_depth, _) = self.find_voxel(pos, None);
+            let (node, node_depth, _) = self.find_voxel(pos, None, None);
             if depth == node_depth {
-                self.nodes[node] = Node::new(value, 0);
+                self.nodes[node] = Node::new(BLOCK_OFFSET + 1, value);
                 return;
             } else {
                 self.nodes[node].pointer = self.nodes.len() as u32;
@@ -144,7 +160,7 @@ impl CpuOctree {
         let mut data_index = 1;
         let mut node_index = 0;
         while node_index < octree.nodes.len() {
-            if octree.nodes[node_index].value != 0 {
+            if octree.nodes[node_index].pointer > BLOCK_OFFSET {
                 if data_index < node_end {
                     let child_mask = data[data_start + data_index];
                     octree.nodes[node_index].pointer = octree.nodes.len() as u32;
@@ -213,7 +229,7 @@ impl CpuOctree {
 
         for child_index in 0..8 {
             let node = self.nodes[child_index];
-            if node.pointer > 0 {
+            if node.pointer < BLOCK_OFFSET {
                 queue.push_back((child_index, 1));
             }
         }
@@ -226,7 +242,7 @@ impl CpuOctree {
                     let node = self.nodes[node_index as usize];
                     for child_index in 0..8 {
                         let child_node = self.nodes[node.pointer as usize + child_index];
-                        if child_node.pointer > 0 {
+                        if child_node.pointer < BLOCK_OFFSET {
                             queue.push_back((node.pointer as usize + child_index, depth + 1));
                         }
                     }
@@ -254,7 +270,7 @@ impl CpuOctree {
 
                 for i in 0..8 {
                     let child = self.nodes[node.pointer as usize + i];
-                    if child.value != 0 || child.pointer != 0 {
+                    if child.pointer != BLOCK_OFFSET {
                         let voxel = Voxel::from_value(child.value);
                         colour += Vector3::new(voxel.r as f32, voxel.g as f32, voxel.b as f32);
                         divisor += 1.0;
@@ -264,7 +280,9 @@ impl CpuOctree {
                 colour /= divisor;
 
                 self.nodes[*node_index as usize].value =
-                    Voxel::new(colour.x as u8, colour.y as u8, colour.z as u8).to_cpu_value().max(1);
+                    Voxel::new(colour.x as u8, colour.y as u8, colour.z as u8)
+                        .to_cpu_value()
+                        .max(1);
             }
         }
 
@@ -295,7 +313,6 @@ impl CpuOctree {
     }
 }
 
-// 0, 0, 0 is empty
 fn create_voxel(r: u8, g: u8, b: u8) -> u32 {
     (r as u32) << 16 | (g as u32) << 8 | b as u32
 }
@@ -303,7 +320,11 @@ fn create_voxel(r: u8, g: u8, b: u8) -> u32 {
 impl std::fmt::Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let voxel = Voxel::from_value(self.value);
-        write!(f, "  Voxel: ({}, {}, {}), Pointer: {}", voxel.r, voxel.g, voxel.b, self.pointer)
+        write!(
+            f,
+            "  Voxel: ({}, {}, {}), Pointer: {}",
+            voxel.r, voxel.g, voxel.b, self.pointer
+        )
     }
 }
 
