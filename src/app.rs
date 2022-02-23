@@ -4,6 +4,7 @@ use winit::window::Window;
 pub struct App {
     pub octree: Octree,
     pub cpu_octree: CpuOctree,
+    pub gen_settings: GenSettings,
     pub blocks: Vec<CpuOctree>,
     pub render: Render,
     pub compute: Compute,
@@ -29,10 +30,13 @@ impl App {
             // The empty block
             CpuOctree::new(0),
             CpuOctree::load_file("blocks/stone.vox".to_string(), 0, None).unwrap(),
+            CpuOctree::load_file("blocks/dirt.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/grass.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/glass.vox".to_string(), 0, None).unwrap(),
         ];
 
+        let gen_settings = GenSettings::default();
+        
         let defualt_octree = CpuOctree::new(0b01011011);
         let cpu_octree = match CpuOctree::load_file(octree_path, octree_depth, Some(&blocks)) {
             Ok(cpu_octree) => cpu_octree,
@@ -48,6 +52,7 @@ impl App {
         let app = Self {
             octree,
             cpu_octree,
+            gen_settings,
             blocks,
             render,
             compute,
@@ -55,28 +60,6 @@ impl App {
             character,
             settings,
         };
-
-        // let pos = Vector3::new(-0.6, -0.6, -0.6);
-        // println!("{:?}", app.cpu_octree);
-        // println!("Lookup pos: {:?}", pos);
-        // println!("Node pos: {:?}", app.cpu_octree.find_voxel(pos, None));
-        // println!("{:?}", app.cpu_octree.get_node_mask(app.cpu_octree.nodes[1].pointer as usize));
-        // panic!();
-
-        // app.octree.subdivide(0, 0b0100101, 2);
-        // app.octree.subdivide(8, 0b1100101, 3);
-        // app.octree.unsubdivide(0);
-        // println!("{:?}", app.octree);
-
-        // app.render.update(0.0, &mut app.settings, &app.character);
-        // app.render.render(&window).unwrap();
-
-        // app.compute
-        //     .update(&app.render, &mut app.octree, &mut app.cpu_octree);
-        // app.update(0.0);
-
-        // println!("{:?}", app.octree);
-        // panic!();
 
         app
     }
@@ -152,94 +135,142 @@ impl App {
 
         egui::Window::new("Info").show(&self.render.egui_platform.context(), |ui| {
             ui.label(format!("FPS: {:.0}", fps));
+            egui::CollapsingHeader::new("Render")
+                .default_open(true)
+                .show(ui, |ui| {
+                    if ui.button("Open File").clicked() {
+                        let path = native_dialog::FileDialog::new()
+                            .add_filter("Magica Voxel RSVO File", &["rsvo"])
+                            .add_filter("Magica Voxel Vox File", &["vox"])
+                            .show_open_single_file()
+                            .unwrap();
 
-            if ui.button("Open File").clicked() {
-                let path = native_dialog::FileDialog::new()
-                    .add_filter("Magica Voxel RSVO File", &["rsvo"])
-                    .add_filter("Magica Voxel Vox File", &["vox"])
-                    .show_open_single_file()
-                    .unwrap();
+                        match path {
+                            Some(path) => match CpuOctree::load_file(
+                                path.into_os_string().into_string().unwrap(),
+                                self.settings.octree_depth,
+                                Some(&self.blocks),
+                            ) {
+                                Ok(cpu_octree) => {
+                                    self.cpu_octree = cpu_octree;
 
-                match path {
-                    Some(path) => match CpuOctree::load_file(
-                        path.into_os_string().into_string().unwrap(),
-                        self.settings.octree_depth,
-                        Some(&self.blocks),
-                    ) {
-                        Ok(cpu_octree) => {
-                            self.cpu_octree = cpu_octree;
+                                    // Reset octree
+                                    let mask = self.cpu_octree.get_node_mask(0);
+                                    self.octree = Octree::new(mask);
 
-                            // Reset octree
-                            let mask = self.cpu_octree.get_node_mask(0);
-                            self.octree = Octree::new(mask);
+                                    let nodes = self.octree.raw_data();
+                                    self.render.queue.write_buffer(
+                                        &self.render.node_buffer,
+                                        0,
+                                        bytemuck::cast_slice(&nodes),
+                                    );
 
-                            let nodes = self.octree.raw_data();
-                            self.render.queue.write_buffer(
-                                &self.render.node_buffer,
-                                0,
-                                bytemuck::cast_slice(&nodes),
-                            );
-
-                            self.render.uniforms.max_depth = self.settings.octree_depth;
-                            self.settings.error_string = "".to_string();
+                                    self.render.uniforms.max_depth = self.settings.octree_depth;
+                                    self.settings.error_string = "".to_string();
+                                }
+                                Err(e) => {
+                                    self.settings.error_string = e;
+                                }
+                            },
+                            None => self.settings.error_string = "No file selected".to_string(),
                         }
-                        Err(e) => {
-                            self.settings.error_string = e;
-                        }
-                    },
-                    None => self.settings.error_string = "No file selected".to_string(),
-                }
+                    }
+                    if self.settings.error_string != "" {
+                        ui.colored_label(egui::Color32::RED, &self.settings.error_string);
+                    }
+
+                    ui.add(
+                        egui::Slider::new(&mut self.settings.octree_depth, 0..=20)
+                            .text("Octree depth"),
+                    );
+
+                    ui.horizontal(|ui| {
+                        ui.add(
+                            egui::DragValue::new(&mut self.render.uniforms.sun_dir[0])
+                                .speed(0.05)
+                                .prefix("x: "),
+                        );
+                        ui.add(
+                            egui::DragValue::new(&mut self.render.uniforms.sun_dir[1])
+                                .speed(0.05)
+                                .prefix("y: "),
+                        );
+                        ui.add(
+                            egui::DragValue::new(&mut self.render.uniforms.sun_dir[2])
+                                .speed(0.05)
+                                .prefix("z: "),
+                        );
+                    });
+
+                    ui.checkbox(&mut self.render.uniforms.show_steps, "Show ray steps");
+                    ui.checkbox(&mut self.render.uniforms.show_hits, "Show ray hits");
+                    ui.checkbox(&mut self.render.uniforms.shadows, "Shadows");
+                    ui.checkbox(&mut self.render.uniforms.pause_adaptive, "Pause adaptive");
+                    ui.add(
+                        egui::Slider::new(&mut self.render.uniforms.misc_value, 0.00000001..=10.0)
+                            .text("Misc")
+                            .logarithmic(true),
+                    );
+                    ui.checkbox(&mut self.render.uniforms.misc_bool, "Misc");
+
+                    ui.label(format!(
+                        "Nodes: {:.2} million ({:.0}% holes)",
+                        self.octree.nodes.len() as f32 / 1000000.0,
+                        hole_percentage,
+                    ));
+                });
+
+            egui::CollapsingHeader::new("Character")
+                .default_open(false)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::Slider::new(&mut self.settings.fov, 0.01..=100.0)
+                            .prefix("FOV: ")
+                            .logarithmic(true),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut self.settings.sensitivity, 0.00001..=0.0001)
+                            .prefix("Sensitivity")
+                            .logarithmic(true),
+                    );
+                });
+
+            fn update_world_gen(app: &mut App) {
+                app.cpu_octree = generate_world(&app.gen_settings, &app.blocks).unwrap();
+                app.octree = Octree::new(app.cpu_octree.get_node_mask(0));
             }
-            if self.settings.error_string != "" {
-                ui.colored_label(egui::Color32::RED, &self.settings.error_string);
-            }
 
-            ui.add(egui::Slider::new(&mut self.settings.octree_depth, 0..=20).text("Octree depth"));
-            ui.add(
-                egui::Slider::new(&mut self.settings.fov, 0.01..=100.0)
-                    .prefix("FOV: ")
-                    .logarithmic(true),
-            );
-            ui.add(
-                egui::Slider::new(&mut self.settings.sensitivity, 0.00001..=0.0001)
-                    .prefix("Sensitivity")
-                    .logarithmic(true),
-            );
-
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::DragValue::new(&mut self.render.uniforms.sun_dir[0])
-                        .speed(0.05)
-                        .prefix("x: "),
-                );
-                ui.add(
-                    egui::DragValue::new(&mut self.render.uniforms.sun_dir[1])
-                        .speed(0.05)
-                        .prefix("y: "),
-                );
-                ui.add(
-                    egui::DragValue::new(&mut self.render.uniforms.sun_dir[2])
-                        .speed(0.05)
-                        .prefix("z: "),
-                );
-            });
-
-            ui.checkbox(&mut self.render.uniforms.show_steps, "Show ray steps");
-            ui.checkbox(&mut self.render.uniforms.show_hits, "Show ray hits");
-            ui.checkbox(&mut self.render.uniforms.shadows, "Shadows");
-            ui.checkbox(&mut self.render.uniforms.pause_adaptive, "Pause adaptive");
-            ui.add(
-                egui::Slider::new(&mut self.render.uniforms.misc_value, 0.00000001..=10.0)
-                    .text("Misc")
-                    .logarithmic(true),
-            );
-            ui.checkbox(&mut self.render.uniforms.misc_bool, "Misc");
-
-            ui.label(format!(
-                "Nodes: {:.2} million ({:.0}% holes)",
-                self.octree.nodes.len() as f32 / 1000000.0,
-                hole_percentage,
-            ));
+            egui::CollapsingHeader::new("World gen")
+                .default_open(false)
+                .show(ui, |ui| {
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut self.gen_settings.seed, 0..=u32::MAX)
+                                .prefix("Seed: "),
+                        )
+                        .changed()
+                    {
+                        update_world_gen(self)
+                    }
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut self.gen_settings.scale, 0.01..=1.0)
+                                .prefix("Scale: "),
+                        )
+                        .changed()
+                    {
+                        update_world_gen(self)
+                    }
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut self.gen_settings.height, 0.01..=1.0)
+                                .prefix("Height: "),
+                        )
+                        .changed()
+                    {
+                        update_world_gen(self)
+                    }
+                });
         });
     }
 

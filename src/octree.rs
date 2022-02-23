@@ -16,13 +16,13 @@ impl Voxel {
         Voxel { r, g, b }
     }
 
-    pub fn from_value(value: u32) -> Voxel {
-        let r = (value >> 16) as u8;
-        let g = (value >> 8) as u8;
-        let b = value as u8;
+    // pub fn from_value(value: u32) -> Voxel {
+    //     let r = (value >> 16) as u8;
+    //     let g = (value >> 8) as u8;
+    //     let b = value as u8;
 
-        Voxel::new(r, g, b)
-    }
+    //     Voxel::new(r, g, b)
+    // }
 
     pub fn to_value(&self) -> u32 {
         (VOXEL_OFFSET + self.to_cpu_value()) << 4
@@ -138,39 +138,6 @@ impl Octree {
             node_index = self.get_node(node_index + child_index) as usize;
         }
     }
-
-    // // Gonna use hole filling instead for now
-    // // Reallocates and rebuilds the entire octree
-    // pub fn rebuild(&mut self) {
-    //     let mut new_octree = Octree::new(0);
-
-    //     use std::collections::VecDeque;
-    //     let mut queue = VecDeque::new();
-
-    //     for child_index in 0..8 {
-    //         let child_depth = 1;
-    //         let child_pos = Octree::pos_offset(child_index, child_depth);
-    //         queue.push_back((child_index, child_depth, child_pos));
-    //     }
-
-    //     while let Some((node_index, depth, pos)) = queue.pop_front() {
-    //         let tnipt = self.nodes[node_index as usize];
-    //         if tnipt >= VOXEL_OFFSET {
-    //             let voxel_index = tnipt - VOXEL_OFFSET;
-    //             if voxel_index == 0 {
-    //                 continue;
-    //             }
-    //             self.voxel_positions[voxel_index as usize] = pos;
-    //         } else {
-    //             for child_index in 0..8 {
-    //                 let new_index = tnipt as usize + child_index;
-    //                 let new_depth = depth + 1;
-    //                 let new_pos = pos + Octree::pos_offset(child_index, new_depth);
-    //                 stack.push((new_index, new_depth, new_pos));
-    //             }
-    //         }
-    //     }
-    // }
 
     pub fn expanded(&self, size: usize) -> Vec<u32> {
         let mut nodes = self.nodes.clone();

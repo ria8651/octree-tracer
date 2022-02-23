@@ -1,3 +1,5 @@
+use bracket_noise::prelude::*;
+use bracket_random::prelude::*;
 use cgmath::*;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
@@ -10,14 +12,16 @@ use winit::{
 mod adaptive;
 mod app;
 mod compute;
-mod octree;
 mod cpu_octree;
+mod octree;
+mod procedural;
 mod render;
 use adaptive::*;
 use app::*;
 use compute::*;
-use octree::*;
 use cpu_octree::*;
+use octree::*;
+use procedural::*;
 use render::*;
 
 fn main() {

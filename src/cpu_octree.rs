@@ -34,7 +34,7 @@ impl CpuOctree {
         for i in 0..8 {
             if (mask >> i) & 1 != 0 {
                 self.nodes.push(Node::new(
-                    BLOCK_OFFSET + (self.nodes.len() as u32 % 3) + 1,
+                    BLOCK_OFFSET + (self.nodes.len() as u32 % 4) + 1,
                     Voxel::new(255, 0, 0),
                 ));
             } else {
@@ -82,6 +82,26 @@ impl CpuOctree {
             mask[i] = self.nodes[node + i].value;
         }
         mask
+    }
+
+    pub fn put_in_block(
+        &mut self,
+        pos: Vector3<f32>,
+        block_id: u32,
+        depth: u32,
+        blocks: &Vec<CpuOctree>,
+    ) {
+        loop {
+            let (node, node_depth, _) = self.find_voxel(pos, None);
+            if depth == node_depth {
+                self.nodes[node] =
+                    Node::new(BLOCK_OFFSET + block_id, blocks[block_id as usize].top_mip);
+                return;
+            } else {
+                self.nodes[node].pointer = self.nodes.len() as u32;
+                self.add_voxels(0);
+            }
+        }
     }
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, voxel: Voxel, depth: u32) {
@@ -171,13 +191,13 @@ impl CpuOctree {
             node_index += 1;
         }
 
-        octree.generate_mip_tree();
-
         println!("SVO size: {}", octree.nodes.len());
+
+        octree.generate_mip_tree();
         Ok(octree)
     }
 
-    fn load_vox(file: &[u8], blocks: Option<&Vec<CpuOctree>>) -> Result<CpuOctree, String> {
+    fn load_vox(file: &[u8], _: Option<&Vec<CpuOctree>>) -> Result<CpuOctree, String> {
         let vox_data = dot_vox::load_bytes(file)?;
         let size = vox_data.models[0].size;
         if size.x != size.y || size.x != size.z || size.y != size.z {
@@ -209,9 +229,9 @@ impl CpuOctree {
             );
         }
 
-        octree.generate_mip_tree();
-
         println!("SVO size: {}", octree.nodes.len());
+
+        octree.generate_mip_tree();
         return Ok(octree);
     }
 
@@ -252,15 +272,19 @@ impl CpuOctree {
 
         // for i in 0..voxels_in_each_level.len() {
         //     println!("Level {}: ({})", i, voxels_in_each_level[i].len());
-        //     // for j in 0..voxels_in_each_level[i].len() {
-        //     //     println!("  {}", voxels_in_each_level[i][j]);
-        //     // }
+        //     for j in 0..voxels_in_each_level[i].len() {
+        //         println!("  {}", voxels_in_each_level[i][j]);
+        //     }
         // }
 
         for i in (0..voxels_in_each_level.len()).rev() {
             for node_index in &voxels_in_each_level[i] {
                 // Average the colours of the 8 children
-                let node = self.nodes[*node_index as usize];
+                let node = if i != 0 {
+                    self.nodes[*node_index as usize]
+                } else {
+                    Node::new(0, Voxel::new(0, 0, 0))
+                };
                 let mut colour = Vector3::new(0.0, 0.0, 0.0);
                 let mut divisor = 0.0;
 
