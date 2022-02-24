@@ -31,10 +31,11 @@ pub fn generate_world(
     terrain_noise.set_fractal_lacunarity(2.0);
     terrain_noise.set_frequency(2.0);
 
-    let mut other_noise = FastNoise::seeded(gen_settings.seed as u64);
-    other_noise.set_noise_type(NoiseType::SimplexFractal);
-    other_noise.set_fractal_type(FractalType::FBM);
-    other_noise.set_frequency(2.0);
+    let mut fracture_noise = FastNoise::seeded(gen_settings.seed as u64 + 5);
+    fracture_noise.set_noise_type(NoiseType::Cellular);
+    fracture_noise.set_cellular_distance_function(CellularDistanceFunction::Euclidean);
+    fracture_noise.set_cellular_return_type(CellularReturnType::Distance2);
+    fracture_noise.set_frequency(2.0);
 
     let tree_structure = CpuOctree::load_structure("structures/tree.vox".to_string());
 
@@ -49,11 +50,15 @@ pub fn generate_world(
                 pos /= world_size as f32 / 2.0;
                 pos -= Vector3::new(1.0, 1.0, 1.0);
 
-                let n_pos = pos * gen_settings.scale;
-                let mut v = terrain_noise.get_noise3d(n_pos.x, n_pos.y, n_pos.z) + 1.0;
+                let mut v = terrain_noise.get_noise3d(
+                    pos.x * gen_settings.scale,
+                    pos.y * gen_settings.scale,
+                    pos.z * gen_settings.scale,
+                ) + 1.0;
+                // let f = fracture_noise.get_noise3d(pos.x, pos.y, pos.z);
 
                 // Height
-                v = v * gen_settings.height;
+                v *= gen_settings.height;
 
                 // Edge of world
                 let edge_distance = 0.5;
@@ -61,7 +66,14 @@ pub fn generate_world(
                     .min(-pos.z.abs() + edge_distance)
                     .min(-pos.y.abs() + 0.0)
                     .min(0.0);
-                v = v + edge;
+                v += edge;
+
+                // Bottom of world
+                {
+                    let dist = (pos.x * pos.x + pos.z * pos.z).sqrt();
+                    let noise = terrain_noise.get_noise3d(pos.x * 0.3, pos.y * 0.1, pos.z * 0.3);
+                    v += (-pos.y).clamp(0.0, 0.7) * (noise + (1.0 - 2.0 * dist));
+                }
 
                 if v > 0.0 {
                     if depth == 0 {
@@ -88,6 +100,10 @@ pub fn generate_world(
                     depth -= rng.range(1, 4);
                     depth = depth.max(0);
                 }
+
+                // if f > 0.1 {
+                //     octree.put_in_block(pos, 4, world_depth, blocks);
+                // }
             }
         }
     }

@@ -34,6 +34,7 @@ impl App {
             CpuOctree::load_file("blocks/grass.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/wood.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/leaf.vox".to_string(), 0, None).unwrap(),
+            CpuOctree::load_file("blocks/slate.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/glass.vox".to_string(), 0, None).unwrap(),
         ];
 
