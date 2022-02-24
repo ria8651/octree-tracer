@@ -34,7 +34,7 @@ impl CpuOctree {
         for i in 0..8 {
             if (mask >> i) & 1 != 0 {
                 self.nodes.push(Node::new(
-                    BLOCK_OFFSET + (self.nodes.len() as u32 % 4) + 1,
+                    BLOCK_OFFSET + (self.nodes.len() as u32 % 6) + 1,
                     Voxel::new(255, 0, 0),
                 ));
             } else {
@@ -127,7 +127,7 @@ impl CpuOctree {
         use std::ffi::OsStr;
         let octree = match path.extension().and_then(OsStr::to_str) {
             Some("rsvo") => CpuOctree::load_octree(&data, octree_depth, blocks)?,
-            Some("vox") => CpuOctree::load_vox(&data, blocks)?,
+            Some("vox") => CpuOctree::load_vox(&data)?,
             _ => return Err("Unknown file type".to_string()),
         };
 
@@ -197,7 +197,7 @@ impl CpuOctree {
         Ok(octree)
     }
 
-    fn load_vox(file: &[u8], _: Option<&Vec<CpuOctree>>) -> Result<CpuOctree, String> {
+    fn load_vox(file: &[u8]) -> Result<CpuOctree, String> {
         let vox_data = dot_vox::load_bytes(file)?;
         let size = vox_data.models[0].size;
         if size.x != size.y || size.x != size.z || size.y != size.z {
@@ -233,6 +233,25 @@ impl CpuOctree {
 
         octree.generate_mip_tree();
         return Ok(octree);
+    }
+
+    pub fn load_structure(path: String) -> Vec<(Vector3<i32>, u32)> {
+        let file = std::fs::read(path).unwrap();
+
+        let vox_data = dot_vox::load_bytes(&file).unwrap();
+        let size = vox_data.models[0].size;
+
+        let mut voxels = Vec::new();
+        for voxel in &vox_data.models[0].voxels {
+            let pos = Vector3::new(
+                size.x as i32 / 2 - voxel.x as i32,
+                voxel.z as i32,
+                voxel.y as i32 - size.y as i32 / 2,
+            );
+            voxels.push((pos, voxel.i as u32 + 1));
+        }
+
+        return voxels;
     }
 
     // This function assumes that the bottem level is filled with colours and overides all other colours
@@ -327,7 +346,7 @@ impl CpuOctree {
 
         for i in 0..self.nodes.len() {
             let node = self.nodes[i];
-            if node.pointer > 0 {
+            if node.pointer < BLOCK_OFFSET {
                 octree
                     .nodes
                     .push(octree::create_node(node.pointer as usize));

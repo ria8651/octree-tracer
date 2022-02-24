@@ -128,18 +128,27 @@ struct Voxel {
 };
 
 // Returns leaf containing position
-fn get_voxel(pos: vec3<f32>, primary: bool) -> Voxel {
+fn find_voxel(pos: vec3<f32>, primary: bool) -> Voxel {
     var node_index = 0u;
     var node_pos = vec3<f32>(0.0);
     var depth = 0u;
     loop {
         depth = depth + 1u;
 
-        let p = vec3<u32>(
-            u32(pos.x >= node_pos.x),
-            u32(pos.y >= node_pos.y),
-            u32(pos.z >= node_pos.z)
-        );
+        var p: vec3<u32>;
+        if (u.misc_bool) {
+            p = vec3<u32>(
+                u32(pos.x >= node_pos.x),
+                u32(pos.y >= node_pos.y),
+                u32(pos.z >= node_pos.z)
+            );
+        } else {
+            p = vec3<u32>(
+                u32(pos.x > node_pos.x),
+                u32(pos.y > node_pos.y),
+                u32(pos.z > node_pos.z)
+            );
+        }
         let child_index = p.x * 4u + p.y * 2u + p.z;
 
         node_pos = node_pos + (vec3<f32>(p) * 2.0 - 1.0) / f32(1u << depth);
@@ -203,7 +212,7 @@ fn octree_ray(r: Ray, primary: bool) -> HitInfo {
     var steps = 0u;
     var normal = trunc(pos * 1.000001);
     loop {
-        voxel = get_voxel(voxel_pos, primary);
+        voxel = find_voxel(voxel_pos, primary);
         if (!u.pause_adaptive || !u.show_hits) {
             let tnipt = node(voxel.value) - VOXEL_OFFSET;
             if (tnipt > 0u) {
@@ -224,7 +233,7 @@ fn octree_ray(r: Ray, primary: bool) -> HitInfo {
         normal = mask * -r_sign;
 
         let t_current = min(min(t_max.x, t_max.y), t_max.z);
-        voxel_pos = pos + dir * t_current - normal * 0.0000002;
+        voxel_pos = pos + dir * t_current - normal * 0.000002;
 
         if (!in_bounds(voxel_pos)) {
             return HitInfo(false, 0x20202000u, vec3<f32>(0.0), vec3<f32>(0.0), steps, voxel.depth);
@@ -265,7 +274,7 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
                 var diffuse = max(dot(hit.normal, -sun_dir), 0.0);
 
                 if (u.shadows) {
-                    let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.00001, -sun_dir), true);
+                    let shadow_hit = octree_ray(Ray(hit.pos + hit.normal * 0.0000025, -sun_dir), true);
                     if (shadow_hit.hit) {
                         diffuse = 0.0;
                     }
@@ -287,7 +296,11 @@ fn fs_main(in: FSIn) -> [[location(0)]] vec4<f32> {
     //     atomicStore(&d.atomic_int, 0u);
     // }
 
-    // output_colour = vec3<f32>(f32(get_voxel(vec3<f32>(clip_space, u.misc_value)).value));
+    // let pos = u.misc_value * vec3<f32>(clip_space, u.misc_value);
+    // let value = find_voxel(pos, true).value;
+
+    // output_colour = vec3<f32>(unpack_u8(value).yzw);
+    // output_colour = pos;
 
     return vec4<f32>(pow(clamp(output_colour, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(f32(u.misc_bool) * -1.2 + 2.2)), 0.5);
 }

@@ -32,19 +32,23 @@ impl App {
             CpuOctree::load_file("blocks/stone.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/dirt.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/grass.vox".to_string(), 0, None).unwrap(),
+            CpuOctree::load_file("blocks/wood.vox".to_string(), 0, None).unwrap(),
+            CpuOctree::load_file("blocks/leaf.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/glass.vox".to_string(), 0, None).unwrap(),
         ];
 
         let gen_settings = GenSettings::default();
         
-        let defualt_octree = CpuOctree::new(0b01011011);
-        let cpu_octree = match CpuOctree::load_file(octree_path, octree_depth, Some(&blocks)) {
-            Ok(cpu_octree) => cpu_octree,
-            Err(_) => defualt_octree,
-        };
+        let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
+        // let defualt_octree = CpuOctree::new(0b01011011);
+        // let cpu_octree = match CpuOctree::load_file(octree_path, octree_depth, Some(&blocks)) {
+        //     Ok(cpu_octree) => cpu_octree,
+        //     Err(_) => defualt_octree,
+        // };
 
         let mask = cpu_octree.get_node_mask(0);
         let octree = Octree::new(mask);
+        // let octree = cpu_octree.to_octree();
 
         let render = Render::new(window, &octree, octree_depth).await;
         let compute = Compute::new(&render, octree_depth);
@@ -207,7 +211,7 @@ impl App {
                     ui.checkbox(&mut self.render.uniforms.shadows, "Shadows");
                     ui.checkbox(&mut self.render.uniforms.pause_adaptive, "Pause adaptive");
                     ui.add(
-                        egui::Slider::new(&mut self.render.uniforms.misc_value, 0.00000001..=10.0)
+                        egui::Slider::new(&mut self.render.uniforms.misc_value, 0.0000001..=0.0001)
                             .text("Misc")
                             .logarithmic(true),
                     );
