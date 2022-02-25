@@ -5,14 +5,14 @@ struct AtomicU32s {
     counter: atomic<u32>;
     data: [[stride(4)]] array<u32>;
 };
-struct CUniforms {
+struct Uniforms {
     node_length: u32;
     max_depth: u32;
 };
 
 
 [[group(0), binding(0)]]
-var<uniform> u: CUniforms; // Uniforms
+var<uniform> u: Uniforms; // Uniforms
 [[group(0), binding(1)]]
 var<storage, read_write> n: U32s; // Nodes
 [[group(0), binding(2)]]

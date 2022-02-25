@@ -1,5 +1,8 @@
 use super::*;
 
+const CHUNK_SIZE: u32 = 19173960; // little less than the worst case for 2^8 octree
+const ITERATIONS: u32 = 16777216; // (2^8)^3
+
 pub struct GenSettings {
     pub seed: u32,
     pub scale: f32,
@@ -13,6 +16,133 @@ impl Default for GenSettings {
             scale: 0.2,
             height: 0.2,
         }
+    }
+}
+
+pub struct Procedural {
+    pipeline: wgpu::ComputePipeline,
+    uniforms: Uniforms,
+    uniform_buffer: wgpu::Buffer,
+    cpu_octree: wgpu::Buffer,
+    compute_bind_group: wgpu::BindGroup,
+}
+
+impl Procedural {
+    pub fn new(gpu: &Gpu) -> Self {
+        let shader = gpu
+            .device
+            .create_shader_module(&wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(
+                    (concat!(include_str!("common.wgsl"), include_str!("procedual.wgsl"))).into(),
+                ),
+            });
+
+        let dispatch_size = (ITERATIONS as f32).sqrt().ceil() as u32;
+        let uniforms = Uniforms::new(dispatch_size);
+        let uniform_buffer = gpu
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[uniforms]),
+                usage: wgpu::BufferUsages::UNIFORM
+                    | wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::COPY_SRC,
+            });
+
+        let pipeline = gpu
+            .device
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &shader,
+                entry_point: "main",
+            });
+
+        let cpu_octree = gpu
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&[0u64; CHUNK_SIZE as usize]),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
+            });
+
+        let compute_bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &pipeline.get_bind_group_layout(0),
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: cpu_octree.as_entire_binding(),
+                },
+            ],
+        });
+
+        Self {
+            pipeline,
+            uniforms,
+            uniform_buffer,
+            cpu_octree,
+            compute_bind_group,
+        }
+    }
+
+    pub fn generate_chunk(&self, gpu: &Gpu) -> CpuOctree {
+        let mut encoder = gpu
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        {
+            let mut compute_pass =
+                encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+
+            let dispatch_size = (ITERATIONS as f32).sqrt().ceil() as u32;
+            compute_pass.set_pipeline(&self.pipeline);
+            compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
+            compute_pass.dispatch(dispatch_size, dispatch_size, 1);
+        }
+
+        gpu.queue.submit(Some(encoder.finish()));
+
+        // Process output
+        let mut cpu_octree = CpuOctree {
+            nodes: Vec::new(),
+            top_mip: Voxel::new(0, 0, 0),
+        };
+
+        let slice = self.cpu_octree.slice(..);
+        let future = slice.map_async(wgpu::MapMode::Read);
+
+        gpu.device.poll(wgpu::Maintain::Wait);
+
+        if let Ok(()) = pollster::block_on(future) {
+            let mut data = slice.get_mapped_range_mut();
+            let result: &mut [u64] = unsafe { reinterpret::reinterpret_mut_slice(&mut data) };
+
+            println!("Nodes recived from gpu: {}", result[0]);
+            // Reset atomic counter
+            let len = (result[0] as usize).min(CHUNK_SIZE as usize - 1);
+            result[0] = 0;
+
+
+            for i in 1..=len {
+                let pointer = (result[i] >> 32) as u32;
+                let value = result[i] as u32;
+                cpu_octree.nodes.push(Node::new(pointer, Voxel::from_value(value)));
+            }
+
+            drop(data);
+            self.cpu_octree.unmap();
+        } else {
+            panic!("Failed to run get subdivision buffer!")
+        }
+
+        cpu_octree.generate_mip_tree();
+        cpu_octree
     }
 }
 
@@ -38,6 +168,7 @@ pub fn generate_world(
     fracture_noise.set_frequency(2.0);
 
     let tree_structure = CpuOctree::load_structure("structures/tree.vox".to_string());
+    let crystal_structure = CpuOctree::load_structure("structures/crystal.vox".to_string());
 
     let world_depth = 8;
     let world_size = 1 << world_depth;
@@ -69,8 +200,8 @@ pub fn generate_world(
                 v += edge;
 
                 // Bottom of world
+                let dist = (pos.x * pos.x + pos.z * pos.z).sqrt();
                 {
-                    let dist = (pos.x * pos.x + pos.z * pos.z).sqrt();
                     let noise = terrain_noise.get_noise3d(pos.x * 0.3, pos.y * 0.1, pos.z * 0.3);
                     v += (-pos.y).clamp(0.0, 0.7) * (noise + (1.0 - 2.0 * dist));
                 }
@@ -79,14 +210,33 @@ pub fn generate_world(
                     if depth == 0 {
                         octree.put_in_block(pos, 3, world_depth, blocks);
 
-                        if rng.range(0, 100) == 0 {
-                            for voxel in &tree_structure {
-                                let tree_pos = Vector3::new(
+                        if x == world_size / 2 && z == world_size / 2 {
+                            for voxel in &crystal_structure {
+                                let structure_pos = Vector3::new(
                                     voxel.0.x as f32,
                                     voxel.0.y as f32,
                                     voxel.0.z as f32,
                                 ) * voxel_size;
-                                octree.put_in_block(pos + tree_pos, voxel.1, world_depth, blocks);
+                                octree.put_in_block(
+                                    pos + structure_pos,
+                                    voxel.1,
+                                    world_depth,
+                                    blocks,
+                                );
+                            }
+                        } else if rng.range(0, 100) == 0 && dist > 0.2 {
+                            for voxel in &tree_structure {
+                                let structure_pos = Vector3::new(
+                                    voxel.0.x as f32,
+                                    voxel.0.y as f32,
+                                    voxel.0.z as f32,
+                                ) * voxel_size;
+                                octree.put_in_block(
+                                    pos + structure_pos,
+                                    voxel.1,
+                                    world_depth,
+                                    blocks,
+                                );
                             }
                         }
                     } else if depth < 5 {
@@ -113,4 +263,24 @@ pub fn generate_world(
     octree.generate_mip_tree();
 
     Ok(octree)
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Zeroable, bytemuck::Pod)]
+struct Uniforms {
+    dispatch_size: u32,
+    misc1: f32,
+    misc2: f32,
+    misc3: f32,
+}
+
+impl Uniforms {
+    fn new(dispatch_size: u32) -> Self {
+        Self {
+            dispatch_size,
+            misc1: 0.0,
+            misc2: 0.0,
+            misc3: 0.0,
+        }
+    }
 }

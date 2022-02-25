@@ -16,6 +16,7 @@ mod cpu_octree;
 mod octree;
 mod procedural;
 mod render;
+mod gpu;
 use adaptive::*;
 use app::*;
 use compute::*;
@@ -23,6 +24,7 @@ use cpu_octree::*;
 use octree::*;
 use procedural::*;
 use render::*;
+use gpu::*;
 
 fn main() {
     // Defualt file path that only works on the terminal
@@ -41,10 +43,10 @@ fn main() {
         app.input(&window, &event);
         match event {
             Event::RedrawRequested(_) => {
-                match app.render.render(&window) {
+                match app.render.render(&app.gpu, &window) {
                     Ok(_) => {}
                     // Reconfigure the surface if lost
-                    Err(wgpu::SurfaceError::Lost) => app.render.resize(app.render.size),
+                    Err(wgpu::SurfaceError::Lost) => app.render.resize(&app.gpu, app.render.size),
                     // The system is out of memory, we should probably quit
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     // All other errors (Outdated, Timeout) should be resolved by the next frame
@@ -63,11 +65,11 @@ fn main() {
             } if window_id == window.id() => {
                 match event {
                     WindowEvent::Resized(physical_size) => {
-                        app.render.resize(*physical_size);
+                        app.render.resize(&app.gpu, *physical_size);
                     }
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         // new_inner_size is &&mut so we have to dereference it twice
-                        app.render.resize(**new_inner_size);
+                        app.render.resize(&app.gpu, **new_inner_size);
                     }
                     WindowEvent::CloseRequested
                     | WindowEvent::KeyboardInput {
@@ -116,61 +118,6 @@ pub struct Settings {
     fov: f32,
     sensitivity: f32,
     error_string: String,
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Zeroable)]
-pub struct Uniforms {
-    camera: [[f32; 4]; 4],
-    camera_inverse: [[f32; 4]; 4],
-    dimensions: [f32; 4],
-    sun_dir: [f32; 4],
-    max_depth: u32,
-    pause_adaptive: bool,
-    show_steps: bool,
-    show_hits: bool,
-    shadows: bool,
-    misc_value: f32,
-    misc_bool: bool,
-    junk: [u32; 8],
-}
-
-// For bool
-unsafe impl bytemuck::Pod for Uniforms {}
-
-impl Uniforms {
-    fn new(max_depth: u32) -> Self {
-        Self {
-            camera: [[0.0; 4]; 4],
-            camera_inverse: [[0.0; 4]; 4],
-            dimensions: [0.0, 0.0, 0.0, 0.0],
-            sun_dir: [-1.7, -1.0, 0.8, 0.0],
-            max_depth,
-            pause_adaptive: false,
-            show_steps: false,
-            show_hits: false,
-            shadows: true,
-            misc_value: 0.0,
-            misc_bool: false,
-            junk: [0; 8],
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Zeroable, bytemuck::Pod)]
-pub struct CUniforms {
-    node_length: u32,
-    max_depth: u32,
-}
-
-impl CUniforms {
-    fn new(max_depth: u32) -> Self {
-        Self {
-            node_length: 0,
-            max_depth,
-        }
-    }
 }
 
 pub struct Character {

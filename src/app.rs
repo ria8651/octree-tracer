@@ -6,8 +6,10 @@ pub struct App {
     pub cpu_octree: CpuOctree,
     pub gen_settings: GenSettings,
     pub blocks: Vec<CpuOctree>,
+    pub gpu: Gpu,
     pub render: Render,
     pub compute: Compute,
+    pub procedural: Procedural,
     pub input: Input,
     pub character: Character,
     pub settings: Settings,
@@ -35,12 +37,17 @@ impl App {
             CpuOctree::load_file("blocks/wood.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/leaf.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/slate.vox".to_string(), 0, None).unwrap(),
+            CpuOctree::load_file("blocks/crystal.vox".to_string(), 0, None).unwrap(),
             CpuOctree::load_file("blocks/glass.vox".to_string(), 0, None).unwrap(),
         ];
 
+        let gpu = Gpu::new(window).await;
+        let procedural = Procedural::new(&gpu);
+
+        let cpu_octree = procedural.generate_chunk(&gpu);
+
         let gen_settings = GenSettings::default();
-        
-        let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
+        // let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
         // let defualt_octree = CpuOctree::new(0b01011011);
         // let cpu_octree = match CpuOctree::load_file(octree_path, octree_depth, Some(&blocks)) {
         //     Ok(cpu_octree) => cpu_octree,
@@ -51,16 +58,18 @@ impl App {
         let octree = Octree::new(mask);
         // let octree = cpu_octree.to_octree();
 
-        let render = Render::new(window, &octree, octree_depth).await;
-        let compute = Compute::new(&render, octree_depth);
+        let render = Render::new(&gpu, window, &octree, octree_depth).await;
+        let compute = Compute::new(&gpu, &render, octree_depth);
 
         let app = Self {
             octree,
             cpu_octree,
             gen_settings,
             blocks,
+            gpu,
             render,
             compute,
+            procedural,
             input,
             character,
             settings,
@@ -94,13 +103,14 @@ impl App {
         }
 
         self.render
-            .update(time, &mut self.settings, &self.character);
+            .update(&self.gpu, time, &mut self.settings, &self.character);
 
         if !self.render.uniforms.pause_adaptive {
-            self.compute.update(&mut self.render, &self.octree);
+            self.compute.update(&self.gpu, &self.octree);
 
             process_subdivision(
                 &mut self.compute,
+                &self.gpu,
                 &mut self.render,
                 &mut self.octree,
                 &self.cpu_octree,
@@ -108,6 +118,7 @@ impl App {
             );
             process_unsubdivision(
                 &mut self.compute,
+                &self.gpu,
                 &mut self.render,
                 &mut self.octree,
                 &self.cpu_octree,
@@ -117,11 +128,9 @@ impl App {
             // Write octree to gpu
             let nodes = self.octree.raw_data();
 
-            self.render.queue.write_buffer(
-                &self.render.node_buffer,
-                0,
-                bytemuck::cast_slice(&nodes),
-            );
+            self.gpu
+                .queue
+                .write_buffer(&self.render.node_buffer, 0, bytemuck::cast_slice(&nodes));
         }
     }
 
@@ -164,7 +173,7 @@ impl App {
                                     self.octree = Octree::new(mask);
 
                                     let nodes = self.octree.raw_data();
-                                    self.render.queue.write_buffer(
+                                    self.gpu.queue.write_buffer(
                                         &self.render.node_buffer,
                                         0,
                                         bytemuck::cast_slice(&nodes),

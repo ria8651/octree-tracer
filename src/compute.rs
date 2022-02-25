@@ -4,17 +4,17 @@ const WORK_GROUP_SIZE: u32 = 16;
 const DISPATCH_SIZE_Y: u32 = 256;
 
 pub struct Compute {
-    compute_pipeline: wgpu::ComputePipeline,
-    c_uniforms: CUniforms,
-    c_uniform_buffer: wgpu::Buffer,
+    pipeline: wgpu::ComputePipeline,
+    uniforms: Uniforms,
+    uniform_buffer: wgpu::Buffer,
     pub subdivision_buffer: wgpu::Buffer,
     pub unsubdivision_buffer: wgpu::Buffer,
     compute_bind_group: wgpu::BindGroup,
 }
 
 impl Compute {
-    pub fn new(render: &Render, max_depth: u32) -> Self {
-        let shader = render
+    pub fn new(gpu: &Gpu, render: &Render, max_depth: u32) -> Self {
+        let shader = gpu
             .device
             .create_shader_module(&wgpu::ShaderModuleDescriptor {
                 label: None,
@@ -23,30 +23,28 @@ impl Compute {
                 ),
             });
 
-        let c_uniforms = CUniforms::new(max_depth);
-        let c_uniform_buffer =
-            render
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Camera Buffer"),
-                    contents: bytemuck::cast_slice(&[c_uniforms]),
-                    usage: wgpu::BufferUsages::UNIFORM
-                        | wgpu::BufferUsages::COPY_DST
-                        | wgpu::BufferUsages::COPY_SRC,
-                });
+        let uniforms = Uniforms::new(max_depth);
+        let uniform_buffer = gpu
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[uniforms]),
+                usage: wgpu::BufferUsages::UNIFORM
+                    | wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::COPY_SRC,
+            });
 
-        let compute_pipeline =
-            render
-                .device
-                .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                    label: None,
-                    layout: None,
-                    module: &shader,
-                    entry_point: "main",
-                });
+        let pipeline = gpu
+            .device
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &shader,
+                entry_point: "main",
+            });
 
         let subdivision_buffer =
-            render
+            gpu
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: None,
@@ -57,7 +55,7 @@ impl Compute {
                 });
 
         let unsubdivision_buffer =
-            render
+            gpu
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: None,
@@ -67,13 +65,13 @@ impl Compute {
                         | wgpu::BufferUsages::MAP_READ,
                 });
 
-        let compute_bind_group = render.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let compute_bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &compute_pipeline.get_bind_group_layout(0),
+            layout: &pipeline.get_bind_group_layout(0),
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: c_uniform_buffer.as_entire_binding(),
+                    resource: uniform_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -91,23 +89,23 @@ impl Compute {
         });
 
         Self {
-            compute_pipeline,
-            c_uniforms,
-            c_uniform_buffer,
+            pipeline,
+            uniforms,
+            uniform_buffer,
             subdivision_buffer,
             unsubdivision_buffer,
             compute_bind_group,
         }
     }
 
-    pub fn update(&mut self, render: &Render, octree: &Octree) {
+    pub fn update(&mut self, gpu: &Gpu, octree: &Octree) {
         let iterations = octree.nodes.len();
         let dispatch_size_x =
             (iterations as f32 / WORK_GROUP_SIZE as f32 / DISPATCH_SIZE_Y as f32).ceil() as u32;
 
         // println!("Iteration: {} / Dispatch size: {}", iterations, dispatch_size_x);
 
-        let mut encoder = render
+        let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
@@ -115,18 +113,34 @@ impl Compute {
             let mut compute_pass =
                 encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
 
-            compute_pass.set_pipeline(&self.compute_pipeline);
+            compute_pass.set_pipeline(&self.pipeline);
             compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
             compute_pass.dispatch(dispatch_size_x, DISPATCH_SIZE_Y, 1);
         }
 
-        self.c_uniforms.node_length = octree.nodes.len() as u32;
-        render.queue.write_buffer(
-            &self.c_uniform_buffer,
+        self.uniforms.node_length = octree.nodes.len() as u32;
+        gpu.queue.write_buffer(
+            &self.uniform_buffer,
             0,
-            bytemuck::cast_slice(&[self.c_uniforms]),
+            bytemuck::cast_slice(&[self.uniforms]),
         );
 
-        render.queue.submit(Some(encoder.finish()));
+        gpu.queue.submit(Some(encoder.finish()));
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Zeroable, bytemuck::Pod)]
+struct Uniforms {
+    node_length: u32,
+    max_depth: u32,
+}
+
+impl Uniforms {
+    fn new(max_depth: u32) -> Self {
+        Self {
+            node_length: 0,
+            max_depth,
+        }
     }
 }

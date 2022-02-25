@@ -6,6 +6,7 @@ pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 1024000;
 
 pub fn process_subdivision(
     compute: &mut Compute,
+    gpu: &Gpu,
     render: &mut Render,
     octree: &mut Octree,
     cpu_octree: &CpuOctree,
@@ -14,7 +15,7 @@ pub fn process_subdivision(
     let slice = compute.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
-    render.device.poll(wgpu::Maintain::Wait);
+    gpu.device.poll(wgpu::Maintain::Wait);
 
     if let Ok(()) = pollster::block_on(future) {
         let mut data = slice.get_mapped_range_mut();
@@ -78,6 +79,7 @@ pub fn process_subdivision(
 
 pub fn process_unsubdivision(
     compute: &mut Compute,
+    gpu: &Gpu,
     render: &mut Render,
     octree: &mut Octree,
     cpu_octree: &CpuOctree,
@@ -86,7 +88,7 @@ pub fn process_unsubdivision(
     let slice = compute.unsubdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
-    render.device.poll(wgpu::Maintain::Wait);
+    gpu.device.poll(wgpu::Maintain::Wait);
 
     if let Ok(()) = pollster::block_on(future) {
         let mut data = slice.get_mapped_range_mut();

@@ -16,13 +16,13 @@ impl Voxel {
         Voxel { r, g, b }
     }
 
-    // pub fn from_value(value: u32) -> Voxel {
-    //     let r = (value >> 16) as u8;
-    //     let g = (value >> 8) as u8;
-    //     let b = value as u8;
+    pub fn from_value(value: u32) -> Voxel {
+        let r = (value >> 16) as u8;
+        let g = (value >> 8) as u8;
+        let b = value as u8;
 
-    //     Voxel::new(r, g, b)
-    // }
+        Voxel::new(r, g, b)
+    }
 
     pub fn to_value(&self) -> u32 {
         (VOXEL_OFFSET + self.to_cpu_value()) << 4

@@ -9,7 +9,7 @@ pub struct Node {
 }
 
 impl Node {
-    fn new(pointer: u32, value: Voxel) -> Self {
+    pub fn new(pointer: u32, value: Voxel) -> Self {
         Node { value, pointer }
     }
 }
@@ -34,7 +34,7 @@ impl CpuOctree {
         for i in 0..8 {
             if (mask >> i) & 1 != 0 {
                 self.nodes.push(Node::new(
-                    BLOCK_OFFSET + (self.nodes.len() as u32 % 6) + 1,
+                    BLOCK_OFFSET + (self.nodes.len() as u32 % 8) + 1,
                     Voxel::new(255, 0, 0),
                 ));
             } else {
