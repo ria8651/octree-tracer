@@ -9,7 +9,7 @@ description = "A voxel raytracing engine. Needs a .vox (MagicaVoxel) file to ren
 [dependencies]
 wgpu = "0.12"
 winit = "0.26"
-cgmath = { version = "0.18", features = [ "swizzle" ] }
+cgmath = "0.18"
 pollster = "0.2"
 env_logger = "0.9"
 bytemuck = { version = "1.7", features = [ "derive" ] }
@@ -18,7 +18,6 @@ egui = "0.16"
 epi = "0.16"
 egui_winit_platform = "0.13"
 egui_wgpu_backend = "0.16"
-egui_demo_lib = "0.16"
 native-dialog = "0.6"
 reinterpret = "0.2"
 bracket-noise = "0.8"

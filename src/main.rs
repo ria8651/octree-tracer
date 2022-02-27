@@ -27,6 +27,8 @@ use render::*;
 use gpu::*;
 
 fn main() {
+    println!("octree-tracer v0.1.0");
+
     // Defualt file path that only works on the terminal
     let path = "files/dragon.rsvo";
     let octree_depth = 12;

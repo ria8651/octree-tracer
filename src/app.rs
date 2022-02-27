@@ -44,7 +44,7 @@ impl App {
         let gpu = Gpu::new(window).await;
         let procedural = Procedural::new(&gpu);
 
-        let cpu_octree = procedural.generate_chunk(&gpu);
+        let cpu_octree = procedural.generate_chunk(&gpu, &blocks);
 
         let gen_settings = GenSettings::default();
         // let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();

@@ -1,7 +1,8 @@
 use super::*;
 
-const CHUNK_SIZE: u32 = 19173960; // little less than the worst case for 2^8 octree
-const ITERATIONS: u32 = 16777216; // (2^8)^3
+const WORK_GROUP_SIZE: u32 = 32;
+const CHUNK_SIZE: usize = 100000000; // little less than the worst case for 2^8 octree 19173960
+const ITERATIONS: u32 = 16777216; // (2^8)^3 16777216
 
 pub struct GenSettings {
     pub seed: u32,
@@ -38,8 +39,8 @@ impl Procedural {
                 ),
             });
 
-        let dispatch_size = (ITERATIONS as f32).sqrt().ceil() as u32;
-        let uniforms = Uniforms::new(dispatch_size);
+        let dispatch_size = (ITERATIONS as f32 / WORK_GROUP_SIZE as f32).sqrt().ceil() as u32;
+        let uniforms = Uniforms::new(dispatch_size, 8);
         let uniform_buffer = gpu
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -59,11 +60,16 @@ impl Procedural {
                 entry_point: "main",
             });
 
+        let inital_octree = CpuOctree::new(255);
+        let mut raw = inital_octree.raw();
+        raw.insert(0, raw.len() as u64);
+        raw.extend(std::iter::repeat(0).take(CHUNK_SIZE.checked_sub(raw.len()).unwrap()));
+
         let cpu_octree = gpu
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: None,
-                contents: bytemuck::cast_slice(&[0u64; CHUNK_SIZE as usize]),
+                contents: bytemuck::cast_slice(&raw),
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
             });
 
@@ -91,7 +97,7 @@ impl Procedural {
         }
     }
 
-    pub fn generate_chunk(&self, gpu: &Gpu) -> CpuOctree {
+    pub fn generate_chunk(&self, gpu: &Gpu, blocks: &Vec<CpuOctree>) -> CpuOctree {
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -100,7 +106,12 @@ impl Procedural {
             let mut compute_pass =
                 encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
 
-            let dispatch_size = (ITERATIONS as f32).sqrt().ceil() as u32;
+            let dispatch_size = (ITERATIONS as f32 / WORK_GROUP_SIZE as f32).sqrt().ceil() as u32;
+            println!(
+                "Dispatch size on x and y: {} (total threads: {})",
+                dispatch_size,
+                dispatch_size * dispatch_size * WORK_GROUP_SIZE
+            );
             compute_pass.set_pipeline(&self.pipeline);
             compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
             compute_pass.dispatch(dispatch_size, dispatch_size, 1);
@@ -123,16 +134,23 @@ impl Procedural {
             let mut data = slice.get_mapped_range_mut();
             let result: &mut [u64] = unsafe { reinterpret::reinterpret_mut_slice(&mut data) };
 
-            println!("Nodes recived from gpu: {}", result[0]);
             // Reset atomic counter
-            let len = (result[0] as usize).min(CHUNK_SIZE as usize - 1);
+            let len = result[0] as usize;
             result[0] = 0;
-
+            println!("Nodes recived from gpu: {}", len);
 
             for i in 1..=len {
                 let pointer = (result[i] >> 32) as u32;
-                let value = result[i] as u32;
-                cpu_octree.nodes.push(Node::new(pointer, Voxel::from_value(value)));
+                if pointer == 0 {
+                    cpu_octree
+                        .nodes
+                        .push(Node::new(BLOCK_OFFSET, Voxel::new(0, 0, 0)));
+                } else {
+                    let value = result[i] as u32;
+                    cpu_octree
+                        .nodes
+                        .push(Node::new(pointer, Voxel::from_value(value)));
+                }
             }
 
             drop(data);
@@ -141,7 +159,10 @@ impl Procedural {
             panic!("Failed to run get subdivision buffer!")
         }
 
-        cpu_octree.generate_mip_tree();
+        // println!("{:?}", cpu_octree);
+        // panic!();
+
+        cpu_octree.generate_mip_tree(Some(blocks));
         cpu_octree
     }
 }
@@ -260,7 +281,7 @@ pub fn generate_world(
 
     println!("SVO size: {}", octree.nodes.len());
 
-    octree.generate_mip_tree();
+    octree.generate_mip_tree(Some(blocks));
 
     Ok(octree)
 }
@@ -269,15 +290,17 @@ pub fn generate_world(
 #[derive(Debug, Copy, Clone, bytemuck::Zeroable, bytemuck::Pod)]
 struct Uniforms {
     dispatch_size: u32,
+    depth: u32,
     misc1: f32,
     misc2: f32,
     misc3: f32,
 }
 
 impl Uniforms {
-    fn new(dispatch_size: u32) -> Self {
+    fn new(dispatch_size: u32, depth: u32) -> Self {
         Self {
             dispatch_size,
+            depth,
             misc1: 0.0,
             misc2: 0.0,
             misc3: 0.0,

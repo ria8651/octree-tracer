@@ -127,7 +127,7 @@ impl CpuOctree {
         use std::ffi::OsStr;
         let octree = match path.extension().and_then(OsStr::to_str) {
             Some("rsvo") => CpuOctree::load_octree(&data, octree_depth, blocks)?,
-            Some("vox") => CpuOctree::load_vox(&data)?,
+            Some("vox") => CpuOctree::load_vox(&data, blocks)?,
             _ => return Err("Unknown file type".to_string()),
         };
 
@@ -180,9 +180,6 @@ impl CpuOctree {
                     let child_mask = data[data_start + data_index];
                     octree.nodes[node_index].pointer = octree.nodes.len() as u32;
                     octree.add_voxels(child_mask);
-                } else if let Some(blocks) = blocks {
-                    let index = (octree.nodes[node_index].pointer - BLOCK_OFFSET) as usize;
-                    octree.nodes[node_index].value = blocks[index].top_mip;
                 }
 
                 data_index += 1;
@@ -193,11 +190,11 @@ impl CpuOctree {
 
         println!("SVO size: {}", octree.nodes.len());
 
-        octree.generate_mip_tree();
+        octree.generate_mip_tree(blocks);
         Ok(octree)
     }
 
-    fn load_vox(file: &[u8]) -> Result<CpuOctree, String> {
+    fn load_vox(file: &[u8], blocks: Option<&Vec<CpuOctree>>) -> Result<CpuOctree, String> {
         let vox_data = dot_vox::load_bytes(file)?;
         let size = vox_data.models[0].size;
         if size.x != size.y || size.x != size.z || size.y != size.z {
@@ -231,7 +228,7 @@ impl CpuOctree {
 
         println!("SVO size: {}", octree.nodes.len());
 
-        octree.generate_mip_tree();
+        octree.generate_mip_tree(blocks);
         return Ok(octree);
     }
 
@@ -255,7 +252,7 @@ impl CpuOctree {
     }
 
     // This function assumes that the bottem level is filled with colours and overides all other colours
-    pub fn generate_mip_tree(&mut self) {
+    pub fn generate_mip_tree(&mut self, blocks: Option<&Vec<CpuOctree>>) {
         let mut voxels_in_each_level: Vec<Vec<usize>> = Vec::new();
         voxels_in_each_level.push(vec![0]);
 
@@ -266,6 +263,11 @@ impl CpuOctree {
             let node = self.nodes[child_index];
             if node.pointer < BLOCK_OFFSET {
                 queue.push_back((child_index, 1));
+            } else if let Some(blocks) = blocks {
+                if node.pointer > BLOCK_OFFSET {
+                    let index = (node.pointer - BLOCK_OFFSET) as usize;
+                    self.nodes[child_index].value = blocks[index].top_mip;
+                }
             }
         }
 
@@ -276,9 +278,14 @@ impl CpuOctree {
 
                     let node = self.nodes[node_index as usize];
                     for child_index in 0..8 {
-                        let child_node = self.nodes[node.pointer as usize + child_index];
+                        let child_node = &mut self.nodes[node.pointer as usize + child_index];
                         if child_node.pointer < BLOCK_OFFSET {
                             queue.push_back((node.pointer as usize + child_index, depth + 1));
+                        } else if let Some(blocks) = blocks {
+                            if child_node.pointer > BLOCK_OFFSET {
+                                let index = (child_node.pointer - BLOCK_OFFSET) as usize;
+                                child_node.value = blocks[index].top_mip;
+                            }
                         }
                     }
 
@@ -357,16 +364,35 @@ impl CpuOctree {
 
         octree
     }
+
+    pub fn raw(&self) -> Vec<u64> {
+        let mut raw = Vec::new();
+        for node in &self.nodes {
+            let value = (node.pointer as u64) << 32 | (node.value.to_cpu_value() as u64);
+            raw.push(value);
+        }
+        raw
+    }
 }
 
 impl std::fmt::Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let voxel = self.value;
-        write!(
-            f,
-            "  Voxel: ({}, {}, {}), Pointer: {}",
-            voxel.r, voxel.g, voxel.b, self.pointer
-        )
+        if self.pointer < BLOCK_OFFSET {
+            write!(
+                f,
+                "{:25} Pointer: {}",
+                format!("  Voxel: ({}, {}, {})", voxel.r, voxel.g, voxel.b),
+                self.pointer
+            )
+        } else {
+            write!(
+                f,
+                "{:25} Pointer: BlockID: {}",
+                format!("  Voxel: ({}, {}, {})", voxel.r, voxel.g, voxel.b),
+                self.pointer - BLOCK_OFFSET
+            )
+        }
     }
 }
 
