@@ -8,7 +8,7 @@ struct Uniforms {
 
 struct AtomicU32s {
     len: atomic<u32>;
-    padding: u32; // Becuase entire buffer is interpreted as u64
+    lock: atomic<u32>; // Becuase entire buffer is interpreted as u64
     data: [[stride(4)]] array<u32>;
 };
 
@@ -88,7 +88,19 @@ fn put_in_voxel(pos: vec3<f32>, voxel: u32, depth: u32) {
             return;
         } else {
             n.data[found_voxel.index * 2u] = 16711680u;
+
+            // Wait for global lock
+            // loop {
+            //     if (atomicCompareExchangeWeak(&n.lock, 0u, 1u)) {
+            //         break;
+            //     }
+            //     break;
+            // }
+
             n.data[found_voxel.index * 2u + 1u] = add_voxels();
+
+            // Release global lock
+            // atomicStore(&n.lock, 0u);
         }
     }
 }
@@ -111,11 +123,17 @@ fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
     let uurrgghh = u.misc1;
     let uurrgghh = n.data[id];
 
-    // n.data[id * 2u] = 65280u;
-    // n.data[id * 2u + 1u] = add_voxels();
+    let scale = 1.6;
+    var v = simplexNoise3(pos * scale) + 0.5 * simplexNoise3(pos * scale * 2.0) + 0.25 * simplexNoise3(pos * scale * 4.0);
 
-    let v = simplexNoise3(pos * 3.0);
-    if (v < -0.2) {
+    // v = v - pos.y * 5.0;
+
+    let edge_distance = 8.0;
+    let falloff = 10.0;
+    let edge = min(min(-falloff * abs(pos.x) + edge_distance, -falloff * abs(pos.z) + edge_distance), -falloff * abs(pos.y) + 2.0);
+    v = v + edge;
+    
+    if (v > 0.0) {
         put_in_voxel(pos, 255u, u.depth);
     }
 }

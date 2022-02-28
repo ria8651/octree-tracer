@@ -1,7 +1,7 @@
 use super::*;
 
 const WORK_GROUP_SIZE: u32 = 32;
-const CHUNK_SIZE: usize = 100000000; // little less than the worst case for 2^8 octree 19173960
+const CHUNK_SIZE: usize = 19173960; // little less than the worst case for 2^8 octree 19173960
 const ITERATIONS: u32 = 16777216; // (2^8)^3 16777216
 
 pub struct GenSettings {
@@ -22,7 +22,7 @@ impl Default for GenSettings {
 
 pub struct Procedural {
     pipeline: wgpu::ComputePipeline,
-    uniforms: Uniforms,
+    pub uniforms: Uniforms,
     uniform_buffer: wgpu::Buffer,
     cpu_octree: wgpu::Buffer,
     compute_bind_group: wgpu::BindGroup,
@@ -46,9 +46,7 @@ impl Procedural {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Camera Buffer"),
                 contents: bytemuck::cast_slice(&[uniforms]),
-                usage: wgpu::BufferUsages::UNIFORM
-                    | wgpu::BufferUsages::COPY_DST
-                    | wgpu::BufferUsages::COPY_SRC,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
 
         let pipeline = gpu
@@ -70,7 +68,9 @@ impl Procedural {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: None,
                 contents: bytemuck::cast_slice(&raw),
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::MAP_READ,
+                usage: wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::MAP_READ
+                    | wgpu::BufferUsages::COPY_DST,
             });
 
         let compute_bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -101,6 +101,23 @@ impl Procedural {
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        gpu.queue.write_buffer(
+            &self.uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[self.uniforms]),
+        );
+       
+        let inital_octree = CpuOctree::new(255);
+        let mut raw = inital_octree.raw();
+        raw.insert(0, raw.len() as u64);
+        raw.extend(std::iter::repeat(0).take(CHUNK_SIZE.checked_sub(raw.len()).unwrap()));
+
+        gpu.queue.write_buffer(
+            &self.cpu_octree,
+            0,
+            bytemuck::cast_slice(&raw),
+        );
 
         {
             let mut compute_pass =
@@ -288,12 +305,12 @@ pub fn generate_world(
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Zeroable, bytemuck::Pod)]
-struct Uniforms {
-    dispatch_size: u32,
-    depth: u32,
-    misc1: f32,
-    misc2: f32,
-    misc3: f32,
+pub struct Uniforms {
+    pub dispatch_size: u32,
+    pub depth: u32,
+    pub misc1: f32,
+    pub misc2: f32,
+    pub misc3: f32,
 }
 
 impl Uniforms {

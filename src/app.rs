@@ -250,7 +250,7 @@ impl App {
                 });
 
             fn update_world_gen(app: &mut App) {
-                app.cpu_octree = generate_world(&app.gen_settings, &app.blocks).unwrap();
+                app.cpu_octree = app.procedural.generate_chunk(&app.gpu, &app.blocks);
                 app.octree = Octree::new(app.cpu_octree.get_node_mask(0));
             }
 
@@ -259,8 +259,8 @@ impl App {
                 .show(ui, |ui| {
                     if ui
                         .add(
-                            egui::Slider::new(&mut self.gen_settings.seed, 0..=u32::MAX)
-                                .prefix("Seed: "),
+                            egui::Slider::new(&mut self.procedural.uniforms.misc1, -5.0..=5.0)
+                                .prefix("Misc1: "),
                         )
                         .changed()
                     {
@@ -268,8 +268,8 @@ impl App {
                     }
                     if ui
                         .add(
-                            egui::Slider::new(&mut self.gen_settings.scale, 0.01..=1.0)
-                                .prefix("Scale: "),
+                            egui::Slider::new(&mut self.procedural.uniforms.misc2, -5.0..=5.0)
+                                .prefix("Misc2: "),
                         )
                         .changed()
                     {
@@ -277,8 +277,8 @@ impl App {
                     }
                     if ui
                         .add(
-                            egui::Slider::new(&mut self.gen_settings.height, 0.01..=1.0)
-                                .prefix("Height: "),
+                            egui::Slider::new(&mut self.procedural.uniforms.misc3, -5.0..=5.0)
+                                .prefix("Misc3: "),
                         )
                         .changed()
                     {
