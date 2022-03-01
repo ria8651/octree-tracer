@@ -104,3 +104,89 @@ fn simplexNoise3(v: vec3<f32>) -> f32 {
     m = m * m;
     return 42. * dot(m * m, vec4<f32>(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
 }
+
+// unsigned rounded box: s=size
+fn box(p: vec3<f32>, s: vec3<f32>) -> f32 {
+    let q = abs(p) - s;
+    return length(max(q, vec3<f32>(0.0))) + min(max(max(q.x, q.y), q.z), 0.0);
+}
+
+fn cone(p: vec3<f32>, c: vec2<f32>, h: f32) -> f32 {
+    var p1: vec3<f32>;
+    var c1: vec2<f32>;
+    var h1: f32;
+    var q: vec2<f32>;
+    var w: vec2<f32>;
+    var a: vec2<f32>;
+    var b: vec2<f32>;
+    var k: f32;
+    var d: f32;
+    var s: f32;
+
+    p1 = p;
+    c1 = c;
+    h1 = h;
+    let e7: f32 = h1;
+    let e8: vec2<f32> = c1;
+    let e10: vec2<f32> = c1;
+    q = (e7 * vec2<f32>((e8.x / e10.y), -(1.0)));
+    let e18: vec3<f32> = p1;
+    let e20: vec3<f32> = p1;
+    let e23: vec3<f32> = p1;
+    w = vec2<f32>(length(e20.xz), e23.y);
+    let e27: vec2<f32> = w;
+    let e28: vec2<f32> = q;
+    let e31: vec2<f32> = w;
+    let e32: vec2<f32> = q;
+    let e36: vec2<f32> = q;
+    let e37: vec2<f32> = q;
+    let e44: vec2<f32> = w;
+    let e45: vec2<f32> = q;
+    let e49: vec2<f32> = q;
+    let e50: vec2<f32> = q;
+    a = (e27 - (e28 * clamp((dot(e44, e45) / dot(e49, e50)), 0.0, 1.0)));
+    let e59: vec2<f32> = w;
+    let e60: vec2<f32> = q;
+    let e61: vec2<f32> = w;
+    let e63: vec2<f32> = q;
+    let e68: vec2<f32> = w;
+    let e70: vec2<f32> = q;
+    b = (e59 - (e60 * vec2<f32>(clamp((e68.x / e70.x), 0.0, 1.0), 1.0)));
+    let e81: vec2<f32> = q;
+    let e83: vec2<f32> = q;
+    k = sign(e83.y);
+    let e89: vec2<f32> = a;
+    let e90: vec2<f32> = a;
+    let e94: vec2<f32> = b;
+    let e95: vec2<f32> = b;
+    let e99: vec2<f32> = a;
+    let e100: vec2<f32> = a;
+    let e104: vec2<f32> = b;
+    let e105: vec2<f32> = b;
+    d = min(dot(e99, e100), dot(e104, e105));
+    let e109: f32 = k;
+    let e110: vec2<f32> = w;
+    let e112: vec2<f32> = q;
+    let e115: vec2<f32> = w;
+    let e117: vec2<f32> = q;
+    let e122: f32 = k;
+    let e123: vec2<f32> = w;
+    let e125: vec2<f32> = q;
+    let e129: f32 = k;
+    let e130: vec2<f32> = w;
+    let e132: vec2<f32> = q;
+    let e135: vec2<f32> = w;
+    let e137: vec2<f32> = q;
+    let e142: f32 = k;
+    let e143: vec2<f32> = w;
+    let e145: vec2<f32> = q;
+    s = max((e129 * ((e130.x * e132.y) - (e135.y * e137.x))), (e142 * (e143.y - e145.y)));
+    let e152: f32 = d;
+    let e155: f32 = s;
+    return (sqrt(e152) * sign(e155));
+}
+
+fn smin(a: f32, b: f32, k: f32) -> f32 {
+    let h = clamp(0.5 + 0.5 * (a - b) / k, 0.0, 1.0);
+    return mix(a, b, h) - k * h * (1.0 - h);
+}

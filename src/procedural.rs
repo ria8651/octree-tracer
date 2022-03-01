@@ -1,7 +1,7 @@
 use super::*;
 
 const WORK_GROUP_SIZE: u32 = 32;
-const CHUNK_SIZE: usize = 19173960; // little less than the worst case for 2^8 octree 19173960
+const CHUNK_SIZE: usize = 32000000; // little less than the worst case for 2^8 octree 19173960
 const ITERATIONS: u32 = 16777216; // (2^8)^3 16777216
 
 pub struct GenSettings {
@@ -107,17 +107,14 @@ impl Procedural {
             0,
             bytemuck::cast_slice(&[self.uniforms]),
         );
-       
+
         let inital_octree = CpuOctree::new(255);
         let mut raw = inital_octree.raw();
         raw.insert(0, raw.len() as u64);
         raw.extend(std::iter::repeat(0).take(CHUNK_SIZE.checked_sub(raw.len()).unwrap()));
 
-        gpu.queue.write_buffer(
-            &self.cpu_octree,
-            0,
-            bytemuck::cast_slice(&raw),
-        );
+        gpu.queue
+            .write_buffer(&self.cpu_octree, 0, bytemuck::cast_slice(&raw));
 
         {
             let mut compute_pass =
@@ -152,7 +149,7 @@ impl Procedural {
             let result: &mut [u64] = unsafe { reinterpret::reinterpret_mut_slice(&mut data) };
 
             // Reset atomic counter
-            let len = result[0] as usize;
+            let len = result[0] as u32 as usize;
             result[0] = 0;
             println!("Nodes recived from gpu: {}", len);
 

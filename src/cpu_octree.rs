@@ -1,6 +1,7 @@
 use super::*;
 
 pub const BLOCK_OFFSET: u32 = 2147483648;
+pub const CHUNK_OFFSET: u32 = 4294900000;
 
 #[derive(Copy, Clone)]
 pub struct Node {

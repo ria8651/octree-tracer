@@ -259,7 +259,7 @@ impl App {
                 .show(ui, |ui| {
                     if ui
                         .add(
-                            egui::Slider::new(&mut self.procedural.uniforms.misc1, -5.0..=5.0)
+                            egui::Slider::new(&mut self.procedural.uniforms.misc1, 0.0..=1.0)
                                 .prefix("Misc1: "),
                         )
                         .changed()
@@ -268,7 +268,7 @@ impl App {
                     }
                     if ui
                         .add(
-                            egui::Slider::new(&mut self.procedural.uniforms.misc2, -5.0..=5.0)
+                            egui::Slider::new(&mut self.procedural.uniforms.misc2, 0.0..=10.0)
                                 .prefix("Misc2: "),
                         )
                         .changed()
@@ -277,7 +277,7 @@ impl App {
                     }
                     if ui
                         .add(
-                            egui::Slider::new(&mut self.procedural.uniforms.misc3, -5.0..=5.0)
+                            egui::Slider::new(&mut self.procedural.uniforms.misc3, 0.0..=16777216.0)
                                 .prefix("Misc3: "),
                         )
                         .changed()

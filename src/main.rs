@@ -15,6 +15,7 @@ mod compute;
 mod cpu_octree;
 mod octree;
 mod procedural;
+mod world;
 mod render;
 mod gpu;
 use adaptive::*;
@@ -23,6 +24,7 @@ use compute::*;
 use cpu_octree::*;
 use octree::*;
 use procedural::*;
+use world::*;
 use render::*;
 use gpu::*;
 
