@@ -1,16 +1,13 @@
 use super::*;
 
-// TODO: There isn't 256 million pixels, why do lower values crash?
 pub const MAX_SUBDIVISIONS_PER_FRAME: usize = 1024000;
 pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 1024000;
 
 pub fn process_subdivision(
     compute: &mut Compute,
     gpu: &Gpu,
-    render: &mut Render,
     octree: &mut Octree,
-    cpu_octree: &CpuOctree,
-    blocks: &Vec<CpuOctree>,
+    world: &World,
 ) {
     let slice = compute.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
@@ -25,9 +22,10 @@ pub fn process_subdivision(
         let len = (result[0] as usize).min(MAX_SUBDIVISIONS_PER_FRAME - 1);
         result[0] = 0;
 
-        // if len > 0 {
-        //     println!("Processing {} subdivisions", len);
-        // }
+        if len > 0 {
+            println!("Processing {} subdivisions", len);
+        }
+
         for i in 1..=len {
             let node_index = result[i] as usize;
 
@@ -38,33 +36,16 @@ pub fn process_subdivision(
 
             let pos = octree.positions[node_index];
             let (_, voxel_depth, _) = octree.find_voxel(pos, None);
-            let (cpu_index, cpu_depth, cpu_pos) =
-                cpu_octree.find_voxel(pos, Some(voxel_depth));
+            let (cpu_chunk, cpu_index, _, _) = world.find_voxel(pos, Some(voxel_depth));
 
-            let tnipt = cpu_octree.nodes[cpu_index];
-            if tnipt.pointer < BLOCK_OFFSET {
-                let mask = cpu_octree.get_node_mask(tnipt.pointer as usize);
+            let tnipt = world.chunks[&cpu_chunk].nodes[cpu_index];
+            if tnipt.pointer < CHUNK_OFFSET {
+                let mask = world.chunks[&cpu_chunk].get_node_mask(tnipt.pointer as usize);
                 octree.subdivide(node_index, mask, voxel_depth + 1);
-            } else if tnipt.pointer > BLOCK_OFFSET {
-                let block_index = tnipt.pointer as usize - BLOCK_OFFSET as usize;
-                let block = &blocks[block_index];
-
-                if voxel_depth == cpu_depth {
-                    let mask = block.get_node_mask(0);
-                    octree.subdivide(node_index, mask, voxel_depth + 1);
-                } else {
-                    let voxel_size = 2.0 / (1 << (cpu_depth + 1)) as f32;
-                    let block_pos = (pos - cpu_pos) / voxel_size;
-
-                    let (block_index, _, _) =
-                        block.find_voxel(block_pos, Some(voxel_depth - cpu_depth));
-
-                    let tnipt = block.nodes[block_index];
-                    if tnipt.pointer < BLOCK_OFFSET {
-                        let mask = block.get_node_mask(tnipt.pointer as usize);
-                        octree.subdivide(node_index, mask, voxel_depth + 1);
-                    }
-                }
+            } else if tnipt.pointer > CHUNK_OFFSET {
+                let chunk = tnipt.pointer - CHUNK_OFFSET;
+                let mask = world.chunks[&chunk].get_node_mask(0);
+                octree.subdivide(node_index, mask, voxel_depth + 1);
             }
 
             result[i] = 0;
@@ -80,10 +61,8 @@ pub fn process_subdivision(
 pub fn process_unsubdivision(
     compute: &mut Compute,
     gpu: &Gpu,
-    render: &mut Render,
     octree: &mut Octree,
-    cpu_octree: &CpuOctree,
-    blocks: &Vec<CpuOctree>,
+    world: &World,
 ) {
     let slice = compute.unsubdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
@@ -98,39 +77,28 @@ pub fn process_unsubdivision(
         let len = (result[0] as usize).min(MAX_UNSUBDIVISIONS_PER_FRAME - 1);
         result[0] = 0;
 
-        // if len > 0 {
-        //     println!("Processing {} unsubdivisions", len);
-        // }
+        if len > 0 {
+            println!("Processing {} unsubdivisions", len);
+        }
+
         for i in 1..=len {
             let node_index = result[i] as usize;
             octree.unsubdivide(node_index);
 
-            let mut value = Voxel::new(0, 0, 0);
-
             let pos = octree.positions[node_index];
             let (_, voxel_depth, _) = octree.find_voxel(pos, None);
-            let (cpu_index, cpu_depth, cpu_pos) =
-                cpu_octree.find_voxel(pos, Some(voxel_depth));
+            let (cpu_chunk, cpu_index, _, _) =
+                world.find_voxel(pos, Some(voxel_depth));
 
-            let tnipt = cpu_octree.nodes[cpu_index];
-            if tnipt.pointer < BLOCK_OFFSET {
-                value = tnipt.value;
-            } else if tnipt.pointer > BLOCK_OFFSET {
-                let block_index = tnipt.pointer as usize - BLOCK_OFFSET as usize;
-                let block = &blocks[block_index];
-
-                if voxel_depth == cpu_depth {
-                    value = tnipt.value;
-                } else {
-                    let voxel_size = 2.0 / (1 << (cpu_depth + 1)) as f32;
-                    let block_pos = (pos - cpu_pos) / voxel_size;
-
-                    let (block_index, _, _) =
-                        block.find_voxel(block_pos, Some(voxel_depth - cpu_depth));
-
-                    value = block.nodes[block_index].value;
-                }
-            }
+            let tnipt = world.chunks[&cpu_chunk].nodes[cpu_index];
+            let value = if tnipt.pointer < CHUNK_OFFSET {
+                tnipt.value
+            } else if tnipt.pointer > CHUNK_OFFSET {
+                let chunk = tnipt.pointer - CHUNK_OFFSET;
+                world.chunks[&chunk].top_mip
+            } else {
+                tnipt.value
+            };
 
             octree.nodes[node_index] = value.to_value();
 

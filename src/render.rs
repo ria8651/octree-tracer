@@ -15,7 +15,7 @@ pub struct Render {
 
 impl Render {
     // Creating some of the wgpu types requires async code
-    pub async fn new(gpu: &Gpu, window: &Window, octree: &Octree, max_depth: u32) -> Self {
+    pub async fn new(gpu: &Gpu, window: &Window, octree: &Octree) -> Self {
         window.set_cursor_grab(true).unwrap();
         window.set_cursor_visible(false);
 
@@ -38,7 +38,7 @@ impl Render {
         });
 
         // #region Buffers
-        let uniforms = Uniforms::new(max_depth);
+        let uniforms = Uniforms::new();
         let uniform_buffer = gpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[uniforms]),
@@ -282,7 +282,6 @@ pub struct Uniforms {
     pub camera_inverse: [[f32; 4]; 4],
     pub dimensions: [f32; 4],
     pub sun_dir: [f32; 4],
-    pub max_depth: u32,
     pub pause_adaptive: bool,
     pub show_steps: bool,
     pub show_hits: bool,
@@ -296,13 +295,12 @@ pub struct Uniforms {
 unsafe impl bytemuck::Pod for Uniforms {}
 
 impl Uniforms {
-    fn new(max_depth: u32) -> Self {
+    fn new() -> Self {
         Self {
             camera: [[0.0; 4]; 4],
             camera_inverse: [[0.0; 4]; 4],
             dimensions: [0.0, 0.0, 0.0, 0.0],
             sun_dir: [-1.7, -1.0, 0.8, 0.0],
-            max_depth,
             pause_adaptive: false,
             show_steps: false,
             show_hits: false,

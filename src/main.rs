@@ -1,7 +1,5 @@
-use bracket_noise::prelude::*;
-use bracket_random::prelude::*;
 use cgmath::*;
-use std::time::Instant;
+use std::{collections::HashMap, time::Instant};
 use wgpu::util::DeviceExt;
 use winit::{
     event::*,
@@ -13,33 +11,29 @@ mod adaptive;
 mod app;
 mod compute;
 mod cpu_octree;
+mod gpu;
 mod octree;
 mod procedural;
-mod world;
 mod render;
-mod gpu;
+mod world;
 use adaptive::*;
 use app::*;
 use compute::*;
 use cpu_octree::*;
+use gpu::*;
 use octree::*;
 use procedural::*;
-use world::*;
 use render::*;
-use gpu::*;
+use world::*;
 
 fn main() {
     println!("octree-tracer v0.1.0");
-
-    // Defualt file path that only works on the terminal
-    let path = "files/dragon.rsvo";
-    let octree_depth = 12;
 
     env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut app = pollster::block_on(App::new(&window, path.to_string(), octree_depth));
+    let mut app = pollster::block_on(App::new(&window));
 
     let now = Instant::now();
     event_loop.run(move |event, _, control_flow| {

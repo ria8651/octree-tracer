@@ -4,7 +4,6 @@ struct Uniforms {
     camera_inverse: mat4x4<f32>;
     dimensions: vec4<f32>;
     sun_dir: vec4<f32>;
-    max_depth: u32;
     pause_adaptive: bool;
     show_steps: bool;
     show_hits: bool;

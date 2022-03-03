@@ -4,7 +4,7 @@ use cgmath::*;
 // const PALETTE: [u32; 3] = [0x00000000, 0x0000FF00, 0x000000FF];
 pub const VOXEL_OFFSET: u32 = 134217728;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Voxel {
     pub r: u8,
     pub g: u8,
@@ -16,6 +16,7 @@ impl Voxel {
         Voxel { r, g, b }
     }
 
+    #[allow(dead_code)]
     pub fn from_value(value: u32) -> Voxel {
         let r = (value >> 16) as u8;
         let g = (value >> 8) as u8;

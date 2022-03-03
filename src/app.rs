@@ -3,9 +3,8 @@ use winit::window::Window;
 
 pub struct App {
     pub octree: Octree,
-    pub cpu_octree: CpuOctree,
+    pub world: World,
     pub gen_settings: GenSettings,
-    pub blocks: Vec<CpuOctree>,
     pub gpu: Gpu,
     pub render: Render,
     pub compute: Compute,
@@ -16,35 +15,23 @@ pub struct App {
 }
 
 impl App {
-    pub async fn new(window: &Window, octree_path: String, octree_depth: u32) -> Self {
+    pub async fn new(window: &Window) -> Self {
         let input = Input::new();
         let character = Character::new();
         let error_string = "".to_string();
 
         let settings = Settings {
-            octree_depth,
+            octree_depth: 12,
             fov: 90.0,
             sensitivity: 0.00005,
             error_string,
         };
 
-        let blocks = vec![
-            // The empty block
-            CpuOctree::new(0),
-            CpuOctree::load_file("blocks/stone.vox".to_string(), 0, None).unwrap(),
-            CpuOctree::load_file("blocks/dirt.vox".to_string(), 0, None).unwrap(),
-            CpuOctree::load_file("blocks/grass.vox".to_string(), 0, None).unwrap(),
-            CpuOctree::load_file("blocks/wood.vox".to_string(), 0, None).unwrap(),
-            CpuOctree::load_file("blocks/leaf.vox".to_string(), 0, None).unwrap(),
-            CpuOctree::load_file("blocks/slate.vox".to_string(), 0, None).unwrap(),
-            CpuOctree::load_file("blocks/crystal.vox".to_string(), 0, None).unwrap(),
-            CpuOctree::load_file("blocks/glass.vox".to_string(), 0, None).unwrap(),
-        ];
+        let world = World::new();
 
         let gpu = Gpu::new(window).await;
         let procedural = Procedural::new(&gpu);
 
-        let cpu_octree = procedural.generate_chunk(&gpu, &blocks);
 
         let gen_settings = GenSettings::default();
         // let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
@@ -54,18 +41,17 @@ impl App {
         //     Err(_) => defualt_octree,
         // };
 
-        let mask = cpu_octree.get_node_mask(0);
+        let mask = world.chunks[&0].get_node_mask(0);
         let octree = Octree::new(mask);
-        // let octree = cpu_octree.to_octree();
+        // let octree = world.to_octree();
 
-        let render = Render::new(&gpu, window, &octree, octree_depth).await;
-        let compute = Compute::new(&gpu, &render, octree_depth);
+        let render = Render::new(&gpu, window, &octree).await;
+        let compute = Compute::new(&gpu, &render);
 
         let app = Self {
             octree,
-            cpu_octree,
+            world,
             gen_settings,
-            blocks,
             gpu,
             render,
             compute,
@@ -111,18 +97,14 @@ impl App {
             process_subdivision(
                 &mut self.compute,
                 &self.gpu,
-                &mut self.render,
                 &mut self.octree,
-                &self.cpu_octree,
-                &self.blocks,
+                &self.world,
             );
             process_unsubdivision(
                 &mut self.compute,
                 &self.gpu,
-                &mut self.render,
                 &mut self.octree,
-                &self.cpu_octree,
-                &self.blocks,
+                &self.world,
             );
 
             // Write octree to gpu
@@ -163,13 +145,14 @@ impl App {
                             Some(path) => match CpuOctree::load_file(
                                 path.into_os_string().into_string().unwrap(),
                                 self.settings.octree_depth,
-                                Some(&self.blocks),
+                                Some(&self.world),
                             ) {
-                                Ok(cpu_octree) => {
-                                    self.cpu_octree = cpu_octree;
+                                Ok(chunk) => {
+                                    self.world.chunks.remove(&0);
+                                    self.world.chunks.insert(0, chunk);
 
                                     // Reset octree
-                                    let mask = self.cpu_octree.get_node_mask(0);
+                                    let mask = self.world.chunks[&0].get_node_mask(0);
                                     self.octree = Octree::new(mask);
 
                                     let nodes = self.octree.raw_data();
@@ -179,7 +162,6 @@ impl App {
                                         bytemuck::cast_slice(&nodes),
                                     );
 
-                                    self.render.uniforms.max_depth = self.settings.octree_depth;
                                     self.settings.error_string = "".to_string();
                                 }
                                 Err(e) => {
@@ -249,42 +231,42 @@ impl App {
                     );
                 });
 
-            fn update_world_gen(app: &mut App) {
-                app.cpu_octree = app.procedural.generate_chunk(&app.gpu, &app.blocks);
-                app.octree = Octree::new(app.cpu_octree.get_node_mask(0));
-            }
+            // fn update_world_gen(app: &mut App) {
+            //     app.world = World::generate_world(&app.procedural, &app.gpu, &app.blocks);;\
+            //     app.octree = Octree::new(app.world.get_node_mask(0));
+            // }
 
-            egui::CollapsingHeader::new("World gen")
-                .default_open(false)
-                .show(ui, |ui| {
-                    if ui
-                        .add(
-                            egui::Slider::new(&mut self.procedural.uniforms.misc1, 0.0..=1.0)
-                                .prefix("Misc1: "),
-                        )
-                        .changed()
-                    {
-                        update_world_gen(self)
-                    }
-                    if ui
-                        .add(
-                            egui::Slider::new(&mut self.procedural.uniforms.misc2, 0.0..=10.0)
-                                .prefix("Misc2: "),
-                        )
-                        .changed()
-                    {
-                        update_world_gen(self)
-                    }
-                    if ui
-                        .add(
-                            egui::Slider::new(&mut self.procedural.uniforms.misc3, 0.0..=16777216.0)
-                                .prefix("Misc3: "),
-                        )
-                        .changed()
-                    {
-                        update_world_gen(self)
-                    }
-                });
+            // egui::CollapsingHeader::new("World gen")
+            //     .default_open(false)
+            //     .show(ui, |ui| {
+            //         if ui
+            //             .add(
+            //                 egui::Slider::new(&mut self.procedural.uniforms.misc1, 0.0..=1.0)
+            //                     .prefix("Misc1: "),
+            //             )
+            //             .changed()
+            //         {
+            //             update_world_gen(self)
+            //         }
+            //         if ui
+            //             .add(
+            //                 egui::Slider::new(&mut self.procedural.uniforms.misc2, 0.0..=10.0)
+            //                     .prefix("Misc2: "),
+            //             )
+            //             .changed()
+            //         {
+            //             update_world_gen(self)
+            //         }
+            //         if ui
+            //             .add(
+            //                 egui::Slider::new(&mut self.procedural.uniforms.misc3, 0.0..=16777216.0)
+            //                     .prefix("Misc3: "),
+            //             )
+            //             .changed()
+            //         {
+            //             update_world_gen(self)
+            //         }
+            //     });
         });
     }
 

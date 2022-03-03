@@ -13,7 +13,7 @@ pub struct Compute {
 }
 
 impl Compute {
-    pub fn new(gpu: &Gpu, render: &Render, max_depth: u32) -> Self {
+    pub fn new(gpu: &Gpu, render: &Render) -> Self {
         let shader = gpu
             .device
             .create_shader_module(&wgpu::ShaderModuleDescriptor {
@@ -23,7 +23,7 @@ impl Compute {
                 ),
             });
 
-        let uniforms = Uniforms::new(max_depth);
+        let uniforms = Uniforms::new(0);
         let uniform_buffer = gpu
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
