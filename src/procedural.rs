@@ -97,7 +97,6 @@ impl Procedural {
         }
     }
 
-    
     pub fn generate_chunk(&self, gpu: &Gpu, world: &World) -> CpuOctree {
         let mut encoder = gpu
             .device

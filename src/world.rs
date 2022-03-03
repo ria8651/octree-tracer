@@ -9,23 +9,55 @@ impl World {
         let mut world = Self {
             chunks: HashMap::new(),
         };
-    
-        world.chunks.insert(1, CpuOctree::load_file("blocks/stone.vox".to_string(), 0, None).unwrap());
-        world.chunks.insert(2, CpuOctree::load_file("blocks/dirt.vox".to_string(), 0, None).unwrap());
-        world.chunks.insert(3, CpuOctree::load_file("blocks/grass.vox".to_string(), 0, None).unwrap());
-        world.chunks.insert(4, CpuOctree::load_file("blocks/wood.vox".to_string(), 0, None).unwrap());
-        world.chunks.insert(5, CpuOctree::load_file("blocks/leaf.vox".to_string(), 0, None).unwrap());
-        world.chunks.insert(6, CpuOctree::load_file("blocks/slate.vox".to_string(), 0, None).unwrap());
-        world.chunks.insert(7, CpuOctree::load_file("blocks/crystal.vox".to_string(), 0, None).unwrap());
-        world.chunks.insert(8, CpuOctree::load_file("blocks/glass.vox".to_string(), 0, None).unwrap());
 
-        world.chunks.insert(0, CpuOctree::load_file("files/dragon.rsvo".to_string(), 12, Some(&world)).unwrap());
-
+        world.chunks.insert(
+            1,
+            CpuOctree::load_file("blocks/stone.vox".to_string(), 0, None).unwrap(),
+        );
+        world.chunks.insert(
+            2,
+            CpuOctree::load_file("blocks/dirt.vox".to_string(), 0, None).unwrap(),
+        );
+        world.chunks.insert(
+            3,
+            CpuOctree::load_file("blocks/grass.vox".to_string(), 0, None).unwrap(),
+        );
+        world.chunks.insert(
+            4,
+            CpuOctree::load_file("blocks/wood.vox".to_string(), 0, None).unwrap(),
+        );
+        world.chunks.insert(
+            5,
+            CpuOctree::load_file("blocks/leaf.vox".to_string(), 0, None).unwrap(),
+        );
+        world.chunks.insert(
+            6,
+            CpuOctree::load_file("blocks/slate.vox".to_string(), 0, None).unwrap(),
+        );
+        world.chunks.insert(
+            7,
+            CpuOctree::load_file("blocks/crystal.vox".to_string(), 0, None).unwrap(),
+        );
+        world.chunks.insert(
+            8,
+            CpuOctree::load_file("blocks/glass.vox".to_string(), 0, None).unwrap(),
+        );
         world
     }
 
-    // pub fn generate_world(&self, procedual: &Procedural, gpu: &Gpu, blocks: &Vec<CpuOctree>) -> Self {
-    //     let mut world = World { chunks: Vec::new() };
+    // pub fn generate_world(
+    //     &self,
+    //     procedual: &Procedural,
+    //     gpu: &Gpu,
+    //     blocks: &Vec<CpuOctree>,
+    // ) -> Self {
+    //     let mut world = World::new();
+
+    //     world.chunks.insert(
+    //         0,
+    //         CpuOctree::load_file("files/dragon.rsvo".to_string(), 12, Some(&world)).unwrap(),
+    //     );
+
     //     world.chunks.push(CpuOctree::new(0));
     //     for i in 0..8 {
     //         let chunk = procedual.generate_chunk(gpu, blocks);
@@ -37,6 +69,7 @@ impl World {
     //     }
 
     //     world.chunks[0].generate_mip_tree(Some(blocks));
+
     //     world
     // }
 

@@ -130,7 +130,7 @@ impl CpuOctree {
             Some("vox") => CpuOctree::load_vox(&data)?,
             _ => return Err("Unknown file type".to_string()),
         };
-        
+
         octree.generate_mip_tree(world);
         // println!("{:?}", octree);
         // panic!();

@@ -32,7 +32,6 @@ impl App {
         let gpu = Gpu::new(window).await;
         let procedural = Procedural::new(&gpu);
 
-
         let gen_settings = GenSettings::default();
         // let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
         // let defualt_octree = CpuOctree::new(0b01011011);
@@ -94,18 +93,8 @@ impl App {
         if !self.render.uniforms.pause_adaptive {
             self.compute.update(&self.gpu, &self.octree);
 
-            process_subdivision(
-                &mut self.compute,
-                &self.gpu,
-                &mut self.octree,
-                &self.world,
-            );
-            process_unsubdivision(
-                &mut self.compute,
-                &self.gpu,
-                &mut self.octree,
-                &self.world,
-            );
+            process_subdivision(&mut self.compute, &self.gpu, &mut self.octree, &self.world);
+            process_unsubdivision(&mut self.compute, &self.gpu, &mut self.octree, &self.world);
 
             // Write octree to gpu
             let nodes = self.octree.raw_data();
