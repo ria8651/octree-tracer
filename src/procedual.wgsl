@@ -26,11 +26,8 @@ struct Node {
     pointing: u32;
 };
 
-fn get_node(index: u32) -> Node {
-    return Node(
-        n.data[index * 2u],
-        n.data[index * 2u + 1u]
-    );
+fn get_node(index: u32) -> u32 {
+    return n.data[index];
 }
 
 fn add_voxels() -> u32 {
@@ -74,7 +71,7 @@ fn find_voxel(
         //     break;
         // }
 
-        let tnipt = get_node(node_index + child_index).pointing;
+        let tnipt = get_node(node_index + child_index);
         if (
             tnipt >= BLOCK_OFFSET
             || tnipt == 0u
@@ -93,15 +90,13 @@ fn put_in_voxel(pos: vec3<f32>, block_id: u32, depth: u32) {
     loop {
         let found_voxel = find_voxel(pos, depth);
         if (found_voxel.depth >= depth) {
-            n.data[found_voxel.index * 2u] = 16711680u;
-            n.data[found_voxel.index * 2u + 1u] = BLOCK_OFFSET + block_id;
+            n.data[found_voxel.index] = BLOCK_OFFSET + block_id;
 
             // Release global lock
             // atomicStore(&n.lock, 0u);
             return;
         } else {
-            n.data[found_voxel.index * 2u] = 16711680u;
-            n.data[found_voxel.index * 2u + 1u] = add_voxels();
+            n.data[found_voxel.index] = add_voxels();
 
             // Release global lock
             // atomicStore(&n.lock, 0u);

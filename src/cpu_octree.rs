@@ -84,17 +84,11 @@ impl CpuOctree {
         mask
     }
 
-    pub fn put_in_block(
-        &mut self,
-        pos: Vector3<f32>,
-        block_id: u32,
-        depth: u32,
-    ) {
+    pub fn put_in_block(&mut self, pos: Vector3<f32>, block_id: u32, depth: u32) {
         loop {
             let (node, node_depth, _) = self.find_voxel(pos, None);
             if depth == node_depth {
-                self.nodes[node] =
-                    Node::new(CHUNK_OFFSET + block_id, Voxel::new(0, 0, 0));
+                self.nodes[node] = Node::new(CHUNK_OFFSET + block_id, Voxel::new(0, 0, 0));
                 return;
             } else {
                 self.nodes[node].pointer = self.nodes.len() as u32;
@@ -119,18 +113,17 @@ impl CpuOctree {
     pub fn load_file(
         file: String,
         octree_depth: u32,
-        world: Option<&World>,
     ) -> Result<CpuOctree, String> {
         let path = std::path::Path::new(&file);
         let data = std::fs::read(path).map_err(|e| e.to_string())?;
         use std::ffi::OsStr;
-        let mut octree = match path.extension().and_then(OsStr::to_str) {
+        let octree = match path.extension().and_then(OsStr::to_str) {
             Some("rsvo") => CpuOctree::load_octree(&data, octree_depth)?,
             Some("vox") => CpuOctree::load_vox(&data)?,
             _ => return Err("Unknown file type".to_string()),
         };
 
-        println!("SVO size: {}", octree.nodes.len());
+        // println!("SVO size: {}", octree.nodes.len());
         return Ok(octree);
     }
 
@@ -261,11 +254,10 @@ impl CpuOctree {
         octree
     }
 
-    pub fn raw(&self) -> Vec<u64> {
+    pub fn raw(&self) -> Vec<u32> {
         let mut raw = Vec::new();
         for node in &self.nodes {
-            let value = (node.pointer as u64) << 32 | (node.value.to_cpu_value() as u64);
-            raw.push(value);
+            raw.push(node.pointer);
         }
         raw
     }

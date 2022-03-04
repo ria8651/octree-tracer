@@ -134,7 +134,6 @@ impl App {
                             Some(path) => match CpuOctree::load_file(
                                 path.into_os_string().into_string().unwrap(),
                                 self.settings.octree_depth,
-                                Some(&self.world),
                             ) {
                                 Ok(chunk) => {
                                     self.world.chunks.remove(&0);

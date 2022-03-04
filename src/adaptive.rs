@@ -17,9 +17,9 @@ pub fn process_subdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree
         let len = (result[0] as usize).min(MAX_SUBDIVISIONS_PER_FRAME - 1);
         result[0] = 0;
 
-        if len > 0 {
-            println!("Processing {} subdivisions", len);
-        }
+        // if len > 0 {
+        //     println!("Processing {} subdivisions", len);
+        // }
 
         for i in 1..=len {
             let node_index = result[i] as usize;
@@ -67,9 +67,9 @@ pub fn process_unsubdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octr
         let len = (result[0] as usize).min(MAX_UNSUBDIVISIONS_PER_FRAME - 1);
         result[0] = 0;
 
-        if len > 0 {
-            println!("Processing {} unsubdivisions", len);
-        }
+        // if len > 0 {
+        //     println!("Processing {} unsubdivisions", len);
+        // }
 
         for i in 1..=len {
             let node_index = result[i] as usize;

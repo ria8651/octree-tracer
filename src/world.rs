@@ -12,42 +12,42 @@ impl World {
 
         world.chunks.insert(
             1,
-            CpuOctree::load_file("blocks/stone.vox".to_string(), 0, Some(&world)).unwrap(),
+            CpuOctree::load_file("blocks/stone.vox".to_string(), 0).unwrap(),
         );
         world.generate_mip_tree(1);
         world.chunks.insert(
             2,
-            CpuOctree::load_file("blocks/dirt.vox".to_string(), 0, Some(&world)).unwrap(),
+            CpuOctree::load_file("blocks/dirt.vox".to_string(), 0).unwrap(),
         );
         world.generate_mip_tree(2);
         world.chunks.insert(
             3,
-            CpuOctree::load_file("blocks/grass.vox".to_string(), 0, Some(&world)).unwrap(),
+            CpuOctree::load_file("blocks/grass.vox".to_string(), 0).unwrap(),
         );
         world.generate_mip_tree(3);
         world.chunks.insert(
             4,
-            CpuOctree::load_file("blocks/wood.vox".to_string(), 0, Some(&world)).unwrap(),
+            CpuOctree::load_file("blocks/wood.vox".to_string(), 0).unwrap(),
         );
         world.generate_mip_tree(4);
         world.chunks.insert(
             5,
-            CpuOctree::load_file("blocks/leaf.vox".to_string(), 0, Some(&world)).unwrap(),
+            CpuOctree::load_file("blocks/leaf.vox".to_string(), 0).unwrap(),
         );
         world.generate_mip_tree(5);
         world.chunks.insert(
             6,
-            CpuOctree::load_file("blocks/slate.vox".to_string(), 0, Some(&world)).unwrap(),
+            CpuOctree::load_file("blocks/slate.vox".to_string(), 0).unwrap(),
         );
         world.generate_mip_tree(6);
         world.chunks.insert(
             7,
-            CpuOctree::load_file("blocks/crystal.vox".to_string(), 0, Some(&world)).unwrap(),
+            CpuOctree::load_file("blocks/crystal.vox".to_string(), 0).unwrap(),
         );
         world.generate_mip_tree(7);
         world.chunks.insert(
             8,
-            CpuOctree::load_file("blocks/glass.vox".to_string(), 0, Some(&world)).unwrap(),
+            CpuOctree::load_file("blocks/glass.vox".to_string(), 0).unwrap(),
         );
         world.generate_mip_tree(8);
 
@@ -71,26 +71,43 @@ impl World {
     pub fn generate_world(procedual: &Procedural, gpu: &Gpu) -> Self {
         let mut world = World::new();
 
-        // Load tree structure
-        let structure = CpuOctree::load_structure("structures/tree.vox".to_string());
         let mut root = CpuOctree::new(0);
+        let world_depth = 1;
 
-        let world_size = 1 << 5;
+        let world_size = 1 << world_depth;
         let voxel_size = 2.0 / world_size as f32;
+        let total_iterations = world_size * world_size * world_size;
+
+        use indicatif::{ProgressBar, ProgressStyle};
+        let pb = ProgressBar::new(total_iterations);
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template("[{elapsed_precise}] [{wide_bar:.green/blue}] {pos} out of {len} chunks generated ({eta_precise})")
+                .progress_chars("=> "),
+        );
+        pb.set_position(0);
+
         let mut i = 0;
-        for voxel in &structure {
-            let structure_pos =
-                Vector3::new(voxel.0.x as f32, voxel.0.y as f32, voxel.0.z as f32) * voxel_size;
+        for x in 0..world_size {
+            for y in 0..world_size {
+                for z in 0..world_size {
+                    let pos = Vector3::new(x as f32, y as f32, z as f32) * voxel_size
+                        - Vector3::new(1.0, 1.0, 1.0);
 
-            let index = CHUNK_OFFSET / 2 + i as u32;
-            let chunk = procedual.generate_chunk(gpu, &world);
-            world.chunks.insert(index, chunk);
-            world.generate_mip_tree(index);
-                
-            root.put_in_block(structure_pos, index, 5);
+                    let index = CHUNK_OFFSET / 2 + i as u32;
+                    let chunk = procedual.generate_chunk(gpu);
+                    world.chunks.insert(index, chunk);
+                    world.generate_mip_tree(index);
 
-            i += 1;
+                    root.put_in_block(pos, index, world_depth);
+
+                    i += 1;
+                    pb.set_position(i);
+                }
+            }
         }
+
+        println!();
 
         world.chunks.insert(0, root);
         world.generate_mip_tree(0);

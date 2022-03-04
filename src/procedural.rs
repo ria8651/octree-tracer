@@ -1,8 +1,8 @@
 use super::*;
 
 const WORK_GROUP_SIZE: u32 = 32;
-const CHUNK_SIZE: usize = 32000000; // little less than the worst case for 2^8 octree 19173960
-const ITERATIONS: u32 = 16777216; // (2^8)^3 16777216
+const CHUNK_SIZE: usize = 256000000; // little less than the worst case for 2^8 octree 19173960
+const ITERATIONS: u32 = 134217728; // (2^8)^3 16777216
 
 pub struct GenSettings {
     pub seed: u32,
@@ -40,7 +40,7 @@ impl Procedural {
             });
 
         let dispatch_size = (ITERATIONS as f32 / WORK_GROUP_SIZE as f32).sqrt().ceil() as u32;
-        let uniforms = Uniforms::new(dispatch_size, 8);
+        let uniforms = Uniforms::new(dispatch_size, 9);
         let uniform_buffer = gpu
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -60,7 +60,8 @@ impl Procedural {
 
         let inital_octree = CpuOctree::new(255);
         let mut raw = inital_octree.raw();
-        raw.insert(0, raw.len() as u64);
+        raw.insert(0, raw.len() as u32);
+        raw.insert(1, 0);
         raw.extend(std::iter::repeat(0).take(CHUNK_SIZE.checked_sub(raw.len()).unwrap()));
 
         let cpu_octree = gpu
@@ -97,7 +98,7 @@ impl Procedural {
         }
     }
 
-    pub fn generate_chunk(&self, gpu: &Gpu, world: &World) -> CpuOctree {
+    pub fn generate_chunk(&self, gpu: &Gpu) -> CpuOctree {
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -110,7 +111,8 @@ impl Procedural {
 
         let inital_octree = CpuOctree::new(255);
         let mut raw = inital_octree.raw();
-        raw.insert(0, raw.len() as u64);
+        raw.insert(0, raw.len() as u32);
+        raw.insert(1, 0);
         raw.extend(std::iter::repeat(0).take(CHUNK_SIZE.checked_sub(raw.len()).unwrap()));
 
         gpu.queue
@@ -121,14 +123,16 @@ impl Procedural {
                 encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
 
             let dispatch_size = (ITERATIONS as f32 / WORK_GROUP_SIZE as f32).sqrt().ceil() as u32;
-            println!(
-                "Dispatch size on x and y: {} (total threads: {})",
-                dispatch_size,
-                dispatch_size * dispatch_size * WORK_GROUP_SIZE
-            );
+
             compute_pass.set_pipeline(&self.pipeline);
             compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
             compute_pass.dispatch(dispatch_size, dispatch_size, 1);
+
+            // println!(
+            //     "Dispatch size on x and y: {} (total threads: {})",
+            //     dispatch_size,
+            //     dispatch_size * dispatch_size * WORK_GROUP_SIZE
+            // );
         }
 
         gpu.queue.submit(Some(encoder.finish()));
@@ -146,24 +150,24 @@ impl Procedural {
 
         if let Ok(()) = pollster::block_on(future) {
             let mut data = slice.get_mapped_range_mut();
-            let result: &mut [u64] = unsafe { reinterpret::reinterpret_mut_slice(&mut data) };
+            let result: &mut [u32] = unsafe { reinterpret::reinterpret_mut_slice(&mut data) };
 
             // Reset atomic counter
-            let len = result[0] as u32 as usize;
+            let len = result[0] as usize;
             result[0] = 0;
-            println!("Nodes recived from gpu: {}", len);
+            // println!("Nodes recived from gpu: {}", len);
 
-            for i in 1..=len {
-                let pointer = (result[i] >> 32) as u32;
+            // Offset for len and lock
+            for i in 2..(len + 2) {
+                let pointer = result[i];
                 if pointer == 0 {
                     cpu_octree
                         .nodes
                         .push(Node::new(CHUNK_OFFSET, Voxel::new(0, 0, 0)));
                 } else {
-                    let value = result[i] as u32;
                     cpu_octree
                         .nodes
-                        .push(Node::new(pointer, Voxel::from_value(value)));
+                        .push(Node::new(pointer, Voxel::new(0, 0, 0)));
                 }
             }
 
