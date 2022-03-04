@@ -176,7 +176,6 @@ impl Procedural {
         // println!("{:?}", cpu_octree);
         // panic!();
 
-        cpu_octree.generate_mip_tree(Some(world));
         cpu_octree
     }
 }

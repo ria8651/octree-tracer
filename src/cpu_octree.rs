@@ -22,7 +22,7 @@ pub struct CpuOctree {
 impl CpuOctree {
     pub fn new(mask: u8) -> Self {
         let mut octree = Self {
-            top_mip: Voxel::new(0, 0, 0),
+            top_mip: Voxel::new(50, 255, 50),
             nodes: Vec::new(),
         };
         octree.add_voxels(mask);
@@ -84,25 +84,24 @@ impl CpuOctree {
         mask
     }
 
-    // pub fn put_in_block(
-    //     &mut self,
-    //     pos: Vector3<f32>,
-    //     block_id: u32,
-    //     depth: u32,
-    //     blocks: &Vec<CpuOctree>,
-    // ) {
-    //     loop {
-    //         let (node, node_depth, _) = self.find_voxel(pos, None);
-    //         if depth == node_depth {
-    //             self.nodes[node] =
-    //                 Node::new(CHUNK_OFFSET + block_id, blocks[block_id as usize].top_mip);
-    //             return;
-    //         } else {
-    //             self.nodes[node].pointer = self.nodes.len() as u32;
-    //             self.add_voxels(0);
-    //         }
-    //     }
-    // }
+    pub fn put_in_block(
+        &mut self,
+        pos: Vector3<f32>,
+        block_id: u32,
+        depth: u32,
+    ) {
+        loop {
+            let (node, node_depth, _) = self.find_voxel(pos, None);
+            if depth == node_depth {
+                self.nodes[node] =
+                    Node::new(CHUNK_OFFSET + block_id, Voxel::new(0, 0, 0));
+                return;
+            } else {
+                self.nodes[node].pointer = self.nodes.len() as u32;
+                self.add_voxels(0);
+            }
+        }
+    }
 
     pub fn put_in_voxel(&mut self, pos: Vector3<f32>, voxel: Voxel, depth: u32) {
         loop {
@@ -131,9 +130,6 @@ impl CpuOctree {
             _ => return Err("Unknown file type".to_string()),
         };
 
-        octree.generate_mip_tree(world);
-        // println!("{:?}", octree);
-        // panic!();
         println!("SVO size: {}", octree.nodes.len());
         return Ok(octree);
     }
@@ -241,98 +237,6 @@ impl CpuOctree {
         }
 
         return voxels;
-    }
-
-    // This function assumes that the bottem level is filled with colours and overides all other colours
-    pub fn generate_mip_tree(&mut self, world: Option<&World>) {
-        let mut voxels_in_each_level: Vec<Vec<usize>> = Vec::new();
-        voxels_in_each_level.push(vec![0]);
-
-        use std::collections::VecDeque;
-        let mut queue = VecDeque::new();
-
-        for child_index in 0..8 {
-            let node = self.nodes[child_index];
-            if node.pointer < CHUNK_OFFSET {
-                queue.push_back((child_index, 1));
-            } else if let Some(world) = world {
-                if node.pointer > CHUNK_OFFSET {
-                    let index = node.pointer - CHUNK_OFFSET;
-                    self.nodes[child_index].value = world.chunks[&index].top_mip;
-                }
-            }
-        }
-
-        while let Some((node_index, depth)) = queue.pop_front() {
-            loop {
-                if let Some(level) = voxels_in_each_level.get_mut(depth as usize) {
-                    level.push(node_index);
-
-                    let node = self.nodes[node_index as usize];
-                    for child_index in 0..8 {
-                        let child_node = &mut self.nodes[node.pointer as usize + child_index];
-                        if child_node.pointer < CHUNK_OFFSET {
-                            queue.push_back((node.pointer as usize + child_index, depth + 1));
-                        } else if let Some(world) = world {
-                            if child_node.pointer > CHUNK_OFFSET {
-                                let index = child_node.pointer - CHUNK_OFFSET;
-                                child_node.value = world.chunks[&index].top_mip;
-                            }
-                        }
-                    }
-
-                    break;
-                } else {
-                    voxels_in_each_level.push(Vec::new());
-                }
-            }
-        }
-
-        // for i in 0..voxels_in_each_level.len() {
-        //     println!("Level {}: ({})", i, voxels_in_each_level[i].len());
-        //     for j in 0..voxels_in_each_level[i].len() {
-        //         println!("  {}", voxels_in_each_level[i][j]);
-        //     }
-        // }
-
-        for i in (0..voxels_in_each_level.len()).rev() {
-            for node_index in &voxels_in_each_level[i] {
-                // Average the colours of the 8 children
-                let node = if i != 0 {
-                    self.nodes[*node_index as usize]
-                } else {
-                    Node::new(0, Voxel::new(0, 0, 0))
-                };
-                let mut colour = Vector3::new(0.0, 0.0, 0.0);
-                let mut divisor = 0.0;
-
-                for i in 0..8 {
-                    let child = self.nodes[node.pointer as usize + i];
-                    if child.value != Voxel::new(0, 0, 0) {
-                        let voxel = child.value;
-                        colour += Vector3::new(voxel.r as f32, voxel.g as f32, voxel.b as f32);
-                        divisor += 1.0;
-                    }
-                }
-
-                colour /= divisor;
-
-                let voxel = Voxel::new(
-                    (colour.x as u8).max(1),
-                    (colour.y as u8).max(1),
-                    (colour.z as u8).max(1),
-                );
-
-                if i != 0 {
-                    self.nodes[*node_index as usize].value = voxel;
-                } else {
-                    self.top_mip = voxel;
-                }
-            }
-        }
-
-        // println!("{:?}", self);
-        // panic!();
     }
 
     #[allow(dead_code)]

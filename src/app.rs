@@ -27,10 +27,10 @@ impl App {
             error_string,
         };
 
-        let world = World::new();
-
         let gpu = Gpu::new(window).await;
         let procedural = Procedural::new(&gpu);
+
+        let world = World::generate_world(&procedural, &gpu);
 
         let gen_settings = GenSettings::default();
         // let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
