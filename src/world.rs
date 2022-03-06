@@ -68,7 +68,7 @@ impl World {
         world
     }
 
-    pub fn generate_world(procedual: &Procedural, gpu: &Gpu) -> Self {
+    pub fn generate_world(procedual: &mut Procedural, gpu: &Gpu) -> Self {
         let mut world = World::new();
 
         let mut root = CpuOctree::new(0);
@@ -82,7 +82,7 @@ impl World {
         let pb = ProgressBar::new(total_iterations);
         pb.set_style(
             ProgressStyle::default_bar()
-                .template("[{elapsed_precise}] [{wide_bar:.green/blue}] {pos} out of {len} chunks generated ({eta_precise})")
+                .template("[{elapsed_precise}] [{wide_bar:.green/blue}] {pos}/{len} chunks generated ({eta_precise})")
                 .progress_chars("=> "),
         );
         pb.set_position(0);
@@ -91,11 +91,13 @@ impl World {
         for x in 0..world_size {
             for y in 0..world_size {
                 for z in 0..world_size {
-                    let pos = Vector3::new(x as f32, y as f32, z as f32) * voxel_size
+                    let pos = (Vector3::new(x as f32, y as f32, z as f32)
+                        )
+                        * voxel_size
                         - Vector3::new(1.0, 1.0, 1.0);
 
                     let index = CHUNK_OFFSET / 2 + i as u32;
-                    let chunk = procedual.generate_chunk(gpu);
+                    let chunk = procedual.generate_chunk(gpu, pos, world_depth);
                     world.chunks.insert(index, chunk);
                     world.generate_mip_tree(index);
 

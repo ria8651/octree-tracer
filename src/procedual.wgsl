@@ -1,6 +1,8 @@
 struct Uniforms {
+    pos: vec4<f32>;
     dispatch_size: u32;
-    depth: u32;
+    base_depth: u32;
+    chunk_depth: u32;
     misc1: f32;
     misc2: f32;
     misc3: f32;
@@ -148,22 +150,28 @@ fn sdf(pos: vec3<f32>) -> f32 {
 [[stage(compute), workgroup_size(32)]]
 fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
     let id = global_id.x * u.dispatch_size + global_id.y; // ) * 24929u) % 16777216u;
-    let side_length = 1u << u.depth;
+    let uurrgghh = u.misc1;
+    let uurrgghh = n.data[id];
+    
+    let side_length = 1u << u.chunk_depth;
     if (id >= side_length * side_length * side_length) {
         return;
     }
 
-    let pos = vec3<f32>(
+    let chunk_pos = vec3<f32>(
         f32(id % side_length),
         f32(id / side_length % side_length),
         f32(id / side_length / side_length),
     ) / f32(side_length);
-    let pos = pos * 2.0 - 1.0;
+    let chunk_pos = chunk_pos * 2.0 - 1.0;
 
-    let voxel_size = 2.0 / f32(1u << u.depth);
-
-    let uurrgghh = u.misc1;
-    let uurrgghh = n.data[id];
+    let full_depth = u.base_depth + u.chunk_depth;
+    let world_pos = vec3<f32>(
+        f32(id % side_length),
+        f32(id / side_length % side_length),
+        f32(id / side_length / side_length),
+    ) / f32(1u << full_depth);
+    let world_pos = u.pos.xyz + world_pos * 2.0;
     
     // loop {
     //     if (atomicLoad(&n.lock) == id) {
@@ -172,14 +180,17 @@ fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
     //     }
     // }
 
-    let v = sdf(pos);
+    let v = sdf(world_pos);
     if (v < 0.0) {
-        let above = pos + vec3<f32>(0.0, voxel_size, 0.0);
+        let voxel_size = 2.0 / f32(1u << full_depth);
+
+        let above = world_pos + vec3<f32>(0.0, voxel_size, 0.0);
         let above_sdf = sdf(above);
+        
         if (above_sdf > 0.0) {
-            put_in_voxel(pos, 3u, u.depth);
+            put_in_voxel(chunk_pos, 3u, u.chunk_depth);
         } else {
-            put_in_voxel(pos, 1u, u.depth);
+            put_in_voxel(chunk_pos, 1u, u.chunk_depth);
         }
     }
 

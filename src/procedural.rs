@@ -39,8 +39,7 @@ impl Procedural {
                 ),
             });
 
-        let dispatch_size = (ITERATIONS as f32 / WORK_GROUP_SIZE as f32).sqrt().ceil() as u32;
-        let uniforms = Uniforms::new(dispatch_size, 9);
+        let uniforms = Uniforms::new(0, Vector3::zero(), 0, 0);
         let uniform_buffer = gpu
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -98,10 +97,16 @@ impl Procedural {
         }
     }
 
-    pub fn generate_chunk(&self, gpu: &Gpu) -> CpuOctree {
+    pub fn generate_chunk(&mut self, gpu: &Gpu, pos: Vector3<f32>, base_depth: u32) -> CpuOctree {
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        let dispatch_size = (ITERATIONS as f32 / WORK_GROUP_SIZE as f32).sqrt().ceil() as u32;
+        self.uniforms.dispatch_size = dispatch_size;
+        self.uniforms.pos = [pos.x, pos.y, pos.z, 0.0];
+        self.uniforms.base_depth = base_depth;
+        self.uniforms.chunk_depth = 9;
 
         gpu.queue.write_buffer(
             &self.uniform_buffer,
@@ -109,7 +114,7 @@ impl Procedural {
             bytemuck::cast_slice(&[self.uniforms]),
         );
 
-        let inital_octree = CpuOctree::new(255);
+        let inital_octree = CpuOctree::new(0);
         let mut raw = inital_octree.raw();
         raw.insert(0, raw.len() as u32);
         raw.insert(1, 0);
@@ -121,8 +126,6 @@ impl Procedural {
         {
             let mut compute_pass =
                 encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
-
-            let dispatch_size = (ITERATIONS as f32 / WORK_GROUP_SIZE as f32).sqrt().ceil() as u32;
 
             compute_pass.set_pipeline(&self.pipeline);
             compute_pass.set_bind_group(0, &self.compute_bind_group, &[]);
@@ -306,21 +309,27 @@ impl Procedural {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Zeroable, bytemuck::Pod)]
 pub struct Uniforms {
+    pub pos: [f32; 4],
     pub dispatch_size: u32,
-    pub depth: u32,
+    pub base_depth: u32,
+    pub chunk_depth: u32,
     pub misc1: f32,
     pub misc2: f32,
     pub misc3: f32,
+    pub padding: [u32; 6],
 }
 
 impl Uniforms {
-    fn new(dispatch_size: u32, depth: u32) -> Self {
+    fn new(dispatch_size: u32, pos: Vector3<f32>, base_depth: u32, chunk_depth: u32) -> Self {
         Self {
+            pos: [pos.x, pos.y, pos.z, 0.0],
             dispatch_size,
-            depth,
+            base_depth,
+            chunk_depth,
             misc1: 0.0,
             misc2: 0.0,
             misc3: 0.0,
+            padding: [0; 6],
         }
     }
 }
