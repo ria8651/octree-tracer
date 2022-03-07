@@ -110,10 +110,7 @@ impl CpuOctree {
         }
     }
 
-    pub fn load_file(
-        file: String,
-        octree_depth: u32,
-    ) -> Result<CpuOctree, String> {
+    pub fn load_file(file: String, octree_depth: u32) -> Result<CpuOctree, String> {
         let path = std::path::Path::new(&file);
         let data = std::fs::read(path).map_err(|e| e.to_string())?;
         use std::ffi::OsStr;
@@ -260,6 +257,18 @@ impl CpuOctree {
             raw.push(node.pointer);
         }
         raw
+    }
+
+    pub unsafe fn bin(&self) -> &[u8] {
+        reinterpret::reinterpret_slice(&self.nodes)
+    }
+
+    pub unsafe fn from_bin(bin: Vec<u8>) -> CpuOctree {
+        let nodes = reinterpret::reinterpret_vec(bin);
+        CpuOctree {
+            nodes,
+            top_mip: Voxel::new(0, 0, 0),
+        }
     }
 }
 

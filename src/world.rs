@@ -51,70 +51,89 @@ impl World {
         );
         world.generate_mip_tree(8);
 
-        // // Load tree structure
-        // let structure = CpuOctree::load_structure("structures/tree.vox".to_string());
-        // let mut tree = CpuOctree::new(0);
-
-        // let world_size = 1 << 5;
-        // let voxel_size = 2.0 / world_size as f32;
-        // for voxel in &structure {
-        //     let structure_pos =
-        //         Vector3::new(voxel.0.x as f32, voxel.0.y as f32, voxel.0.z as f32) * voxel_size;
-        //     tree.put_in_block(structure_pos, voxel.1, 5, &world);
-        // }
-        // world.chunks.insert(0, tree);
-        // world.generate_mip_tree(0);
-
         world
     }
 
     pub fn generate_world(procedual: &mut Procedural, gpu: &Gpu) -> Self {
         let mut world = World::new();
 
-        let mut root = CpuOctree::new(0);
-        let world_depth = 1;
+        let root = procedual.generate_chunk(gpu, Vector3::new(-1.0, -1.0, -1.0), 0);
 
-        let world_size = 1 << world_depth;
-        let voxel_size = 2.0 / world_size as f32;
-        let total_iterations = world_size * world_size * world_size;
+        // let mut root = CpuOctree::new(0);
+        // let world_depth = 1;
 
-        use indicatif::{ProgressBar, ProgressStyle};
-        let pb = ProgressBar::new(total_iterations);
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template("[{elapsed_precise}] [{wide_bar:.green/blue}] {pos}/{len} chunks generated ({eta_precise})")
-                .progress_chars("=> "),
-        );
-        pb.set_position(0);
+        // let world_size = 1 << world_depth;
+        // let voxel_size = 2.0 / world_size as f32;
+        // let total_iterations = world_size * world_size * world_size;
 
-        let mut i = 0;
-        for x in 0..world_size {
-            for y in 0..world_size {
-                for z in 0..world_size {
-                    let pos = (Vector3::new(x as f32, y as f32, z as f32)
-                        )
-                        * voxel_size
-                        - Vector3::new(1.0, 1.0, 1.0);
+        // use indicatif::{ProgressBar, ProgressStyle};
+        // let pb = ProgressBar::new(total_iterations);
+        // pb.set_style(
+        //     ProgressStyle::default_bar()
+        //         .template("[{elapsed_precise}] [{wide_bar:.green/blue}] {pos}/{len} chunks generated ({eta_precise})")
+        //         .progress_chars("=> "),
+        // );
+        // pb.set_position(0);
 
-                    let index = CHUNK_OFFSET / 2 + i as u32;
-                    let chunk = procedual.generate_chunk(gpu, pos, world_depth);
-                    world.chunks.insert(index, chunk);
-                    world.generate_mip_tree(index);
+        // let mut i = 0;
+        // for x in 0..world_size {
+        //     for y in 0..world_size {
+        //         for z in 0..world_size {
+        //             let pos = (Vector3::new(x as f32, y as f32, z as f32)
+        //                 )
+        //                 * voxel_size
+        //                 - Vector3::new(1.0, 1.0, 1.0);
 
-                    root.put_in_block(pos, index, world_depth);
+        //             let index = CHUNK_OFFSET / 2 + i as u32;
+        //             let chunk = procedual.generate_chunk(gpu, pos, world_depth);
+        //             world.chunks.insert(index, chunk);
+        //             world.generate_mip_tree(index);
 
-                    i += 1;
-                    pb.set_position(i);
-                }
-            }
-        }
+        //             root.put_in_block(pos, index, world_depth);
 
-        println!();
+        //             i += 1;
+        //             pb.set_position(i);
+        //         }
+        //     }
+        // }
+
+        // println!();
 
         world.chunks.insert(0, root);
         world.generate_mip_tree(0);
 
         world
+    }
+
+    pub fn save_world<S: AsRef<std::ffi::OsStr> + Sized>(&self, path: S) -> Result<(), String> {
+        // Write chunk to file
+        use std::io::Write;
+        let path = std::path::Path::new(&path);
+        if path.exists() {
+            return Err("File already exists".to_string());
+        }
+
+        std::fs::create_dir(path).unwrap();
+        let mut file = std::fs::File::create(path.join("0.bin")).unwrap();
+        let data = unsafe { self.chunks[&0].bin() };
+        file.write_all(data).unwrap();
+
+        Ok(())
+    }
+
+    pub fn load_world<S: AsRef<std::ffi::OsStr> + Sized>(path: S) -> Result<Self, String> {
+        let mut world = World::new();
+        let path = std::path::Path::new(&path);
+        if !path.exists() {
+            return Err("File doesn't exist!".to_string());
+        }
+
+        // Read chunk from file
+        let file = std::fs::read(path.join("0.bin")).unwrap();
+        let root = unsafe { CpuOctree::from_bin(file) };
+        world.chunks.insert(0, root);
+
+        Ok(world)
     }
 
     /// Returns (chunk, index, depth, pos)

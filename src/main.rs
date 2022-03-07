@@ -115,7 +115,6 @@ pub struct Settings {
     octree_depth: u32,
     fov: f32,
     sensitivity: f32,
-    error_string: String,
 }
 
 pub struct Character {

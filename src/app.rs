@@ -12,25 +12,24 @@ pub struct App {
     pub input: Input,
     pub character: Character,
     pub settings: Settings,
+    ui: Ui,
 }
 
 impl App {
     pub async fn new(window: &Window) -> Self {
         let input = Input::new();
         let character = Character::new();
-        let error_string = "".to_string();
 
         let settings = Settings {
             octree_depth: 12,
             fov: 90.0,
             sensitivity: 0.00005,
-            error_string,
         };
 
         let gpu = Gpu::new(window).await;
-        let mut procedural = Procedural::new(&gpu);
+        let procedural = Procedural::new(&gpu);
 
-        let world = World::generate_world(&mut procedural, &gpu);
+        let world = World::load_world("worlds/defualt").unwrap();
 
         let gen_settings = GenSettings::default();
         // let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
@@ -58,6 +57,7 @@ impl App {
             input,
             character,
             settings,
+            ui: Default::default(),
         };
 
         app
@@ -123,21 +123,54 @@ impl App {
             egui::CollapsingHeader::new("Render")
                 .default_open(true)
                 .show(ui, |ui| {
-                    if ui.button("Open File").clicked() {
-                        let path = native_dialog::FileDialog::new()
-                            .add_filter("Magica Voxel RSVO File", &["rsvo"])
-                            .add_filter("Magica Voxel Vox File", &["vox"])
-                            .show_open_single_file()
-                            .unwrap();
+                    ui.horizontal(|ui| {
+                        if ui.button("Open File").clicked() {
+                            let path = native_dialog::FileDialog::new()
+                                .add_filter("Magica Voxel RSVO File", &["rsvo"])
+                                .add_filter("Magica Voxel Vox File", &["vox"])
+                                .show_open_single_file()
+                                .unwrap();
 
-                        match path {
-                            Some(path) => match CpuOctree::load_file(
-                                path.into_os_string().into_string().unwrap(),
-                                self.settings.octree_depth,
-                            ) {
-                                Ok(chunk) => {
-                                    self.world.chunks.remove(&0);
-                                    self.world.chunks.insert(0, chunk);
+                            match path {
+                                Some(path) => match CpuOctree::load_file(
+                                    path.into_os_string().into_string().unwrap(),
+                                    self.settings.octree_depth,
+                                ) {
+                                    Ok(chunk) => {
+                                        self.world.chunks.remove(&0);
+                                        self.world.chunks.insert(0, chunk);
+                                        self.world.generate_mip_tree(0);
+
+                                        // Reset octree
+                                        let mask = self.world.chunks[&0].get_node_mask(0);
+                                        self.octree = Octree::new(mask);
+
+                                        let nodes = self.octree.raw_data();
+                                        self.gpu.queue.write_buffer(
+                                            &self.render.node_buffer,
+                                            0,
+                                            bytemuck::cast_slice(&nodes),
+                                        );
+
+                                        self.ui.error_string = "".to_string();
+                                    }
+                                    Err(e) => {
+                                        self.ui.error_string = e;
+                                    }
+                                },
+                                None => self.ui.error_string = "No file selected".to_string(),
+                            }
+                        }
+
+                        if ui.button("Open World").clicked() {
+                            let path = native_dialog::FileDialog::new()
+                                .add_filter("Bin in world folder", &["bin"])
+                                .show_open_single_file()
+                                .unwrap();
+
+                            match path {
+                                Some(path) => {
+                                    self.world = World::load_world(path.parent().unwrap()).unwrap();
 
                                     // Reset octree
                                     let mask = self.world.chunks[&0].get_node_mask(0);
@@ -150,17 +183,31 @@ impl App {
                                         bytemuck::cast_slice(&nodes),
                                     );
 
-                                    self.settings.error_string = "".to_string();
+                                    self.ui.error_string = "".to_string();
                                 }
-                                Err(e) => {
-                                    self.settings.error_string = e;
-                                }
-                            },
-                            None => self.settings.error_string = "No file selected".to_string(),
+                                None => self.ui.error_string = "No file selected".to_string(),
+                            }
                         }
-                    }
-                    if self.settings.error_string != "" {
-                        ui.colored_label(egui::Color32::RED, &self.settings.error_string);
+
+                        if ui.button("Save File").clicked() {
+                            let path = native_dialog::FileDialog::new()
+                                .show_save_single_file()
+                                .unwrap();
+
+                            match path {
+                                Some(path) => {
+                                    match self.world.save_world(path) {
+                                        Ok(_) => self.ui.error_string = "".to_string(),
+                                        Err(e) => self.ui.error_string = e,
+                                    }
+                                }
+                                None => self.ui.error_string = "No file selected".to_string(),
+                            }
+                        }
+                    });
+
+                    if self.ui.error_string != "" {
+                        ui.colored_label(egui::Color32::RED, &self.ui.error_string);
                     }
 
                     ui.add(
@@ -321,4 +368,10 @@ impl App {
             _ => {}
         }
     }
+}
+
+#[derive(Default)]
+struct Ui {
+    error_string: String,
+    save_file_name: String,
 }
