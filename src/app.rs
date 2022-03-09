@@ -30,6 +30,9 @@ impl App {
         let procedural = Procedural::new(&gpu);
 
         let world = World::load_world("worlds/defualt").unwrap();
+        for (index, chunk) in &world.chunks {
+            println!("Chunk {} (Nodes: {})", index, chunk.nodes.len());
+        }
 
         let gen_settings = GenSettings::default();
         // let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
@@ -203,6 +206,10 @@ impl App {
                                 }
                                 None => self.ui.error_string = "No file selected".to_string(),
                             }
+                        }
+
+                        if ui.button("Regenerate").clicked() {
+                            self.world = World::generate_world(&mut self.procedural, &self.gpu);
                         }
                     });
 
