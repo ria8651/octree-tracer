@@ -3,7 +3,7 @@ use super::*;
 pub const MAX_SUBDIVISIONS_PER_FRAME: usize = 1024000;
 pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 1024000;
 
-pub fn process_subdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree, world: &World) {
+pub fn process_subdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree, world: &mut World) {
     let slice = compute.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
@@ -39,8 +39,13 @@ pub fn process_subdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree
                 octree.subdivide(node_index, mask, voxel_depth + 1);
             } else if tnipt.pointer > CHUNK_OFFSET {
                 let chunk = tnipt.pointer - CHUNK_OFFSET;
-                let mask = world.chunks[&chunk].get_node_mask(0);
-                octree.subdivide(node_index, mask, voxel_depth + 1);
+                if let Some(chunk) = world.chunks.get(&chunk) {
+                    let mask = chunk.get_node_mask(0);
+                    octree.subdivide(node_index, mask, voxel_depth + 1);
+                } else {
+                    println!("Loading chunk {}", chunk);
+                    world.load_chunk(chunk);
+                }
             }
 
             result[i] = 0;
@@ -53,7 +58,7 @@ pub fn process_subdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree
     }
 }
 
-pub fn process_unsubdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree, world: &World) {
+pub fn process_unsubdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree, world: &mut World) {
     let slice = compute.unsubdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
@@ -84,7 +89,12 @@ pub fn process_unsubdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octr
                 tnipt.value
             } else if tnipt.pointer > CHUNK_OFFSET {
                 let chunk = tnipt.pointer - CHUNK_OFFSET;
-                world.chunks[&chunk].top_mip
+                if chunk >= CHUNK_OFFSET / 2 {
+                    println!("Destroyed chunk {}", chunk);
+                    world.chunks.remove(&chunk);
+                }
+
+                tnipt.value
             } else {
                 tnipt.value
             };

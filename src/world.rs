@@ -1,12 +1,14 @@
 use super::*;
 
 pub struct World {
+    pub path: String,
     pub chunks: HashMap<u32, CpuOctree>,
 }
 
 impl World {
-    pub fn new() -> Self {
+    pub fn new(path: String) -> Self {
         let mut world = Self {
+            path,
             chunks: HashMap::new(),
         };
 
@@ -55,12 +57,12 @@ impl World {
     }
 
     pub fn generate_world(procedual: &mut Procedural, gpu: &Gpu) -> Self {
-        let mut world = World::new();
+        let mut world = World::new("".to_string());
 
         // let root = procedual.generate_chunk(gpu, Vector3::new(-1.0, -1.0, -1.0), 0);
 
         let mut root = CpuOctree::new(0);
-        let world_depth = 1;
+        let world_depth = 2;
 
         let world_size = 1 << world_depth;
         let voxel_size = 2.0 / world_size as f32;
@@ -79,9 +81,7 @@ impl World {
         for x in 0..world_size {
             for y in 0..world_size {
                 for z in 0..world_size {
-                    let pos = (Vector3::new(x as f32, y as f32, z as f32)
-                        )
-                        * voxel_size
+                    let pos = (Vector3::new(x as f32, y as f32, z as f32)) * voxel_size
                         - Vector3::new(1.0, 1.0, 1.0);
 
                     let index = CHUNK_OFFSET / 2 + i as u32;
@@ -116,7 +116,8 @@ impl World {
         std::fs::create_dir(path).unwrap();
         for (index, chunk) in &self.chunks {
             if *index == 0 || *index >= CHUNK_OFFSET / 2 {
-                let mut file = std::fs::File::create(path.join(index.to_string() + ".bin")).unwrap();
+                let mut file =
+                    std::fs::File::create(path.join(index.to_string() + ".bin")).unwrap();
                 let data = unsafe { chunk.bin() };
                 file.write_all(data).unwrap();
             }
@@ -126,21 +127,24 @@ impl World {
     }
 
     pub fn load_world<S: AsRef<std::ffi::OsStr> + Sized>(path: S) -> Result<Self, String> {
-        let mut world = World::new();
         let path = std::path::Path::new(&path);
+        let mut world = World::new(path.to_str().unwrap().to_string());
         if !path.exists() {
             return Err("File doesn't exist!".to_string());
         }
 
-        // Read chunks from file
-        for file in std::fs::read_dir(path).unwrap() {
-            let file_path = &file.unwrap().path();
-            let file = std::fs::read(file_path).unwrap();
-            let root = unsafe { CpuOctree::from_bin(file) };
-            world.chunks.insert(file_path.file_stem().unwrap().to_str().unwrap().parse().unwrap(), root);
-        }
+        let file = std::fs::read(path.join("0.bin")).unwrap();
+        let root = unsafe { CpuOctree::from_bin(file) };
+        world.chunks.insert(0, root);
 
         Ok(world)
+    }
+
+    pub fn load_chunk(&mut self, index: u32) {
+        let path = self.path.clone() + "/" + &index.to_string() + ".bin";
+        let file = std::fs::read(path).unwrap();
+        let root = unsafe { CpuOctree::from_bin(file) };
+        self.chunks.insert(index, root);
     }
 
     /// Returns (chunk, index, depth, pos)
