@@ -106,7 +106,7 @@ impl Procedural {
         self.uniforms.dispatch_size = dispatch_size;
         self.uniforms.pos = [pos.x, pos.y, pos.z, 0.0];
         self.uniforms.base_depth = base_depth;
-        self.uniforms.chunk_depth = 9;
+        self.uniforms.chunk_depth = 8;
 
         gpu.queue.write_buffer(
             &self.uniform_buffer,

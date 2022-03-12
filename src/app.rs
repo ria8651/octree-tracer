@@ -96,8 +96,18 @@ impl App {
         if !self.render.uniforms.pause_adaptive {
             self.compute.update(&self.gpu, &self.octree);
 
-            process_subdivision(&mut self.compute, &self.gpu, &mut self.octree, &mut self.world);
-            process_unsubdivision(&mut self.compute, &self.gpu, &mut self.octree, &mut self.world);
+            process_subdivision(
+                &mut self.compute,
+                &self.gpu,
+                &mut self.octree,
+                &mut self.world,
+            );
+            process_unsubdivision(
+                &mut self.compute,
+                &self.gpu,
+                &mut self.octree,
+                &mut self.world,
+            );
 
             // Write octree to gpu
             let nodes = self.octree.raw_data();
@@ -198,18 +208,41 @@ impl App {
                                 .unwrap();
 
                             match path {
-                                Some(path) => {
-                                    match self.world.save_world(path) {
-                                        Ok(_) => self.ui.error_string = "".to_string(),
-                                        Err(e) => self.ui.error_string = e,
-                                    }
-                                }
+                                Some(path) => match self.world.save_world(path) {
+                                    Ok(_) => self.ui.error_string = "".to_string(),
+                                    Err(e) => self.ui.error_string = e,
+                                },
                                 None => self.ui.error_string = "No file selected".to_string(),
                             }
                         }
 
                         if ui.button("Regenerate").clicked() {
-                            self.world = World::generate_world(&mut self.procedural, &self.gpu);
+                            let path = native_dialog::FileDialog::new()
+                                .show_save_single_file()
+                                .unwrap();
+
+                            match path {
+                                Some(path) => {
+                                    World::generate_world(&path, &mut self.procedural, &self.gpu)
+                                        .unwrap();
+
+                                    self.world = World::load_world(path).unwrap();
+
+                                    // Reset octree
+                                    let mask = self.world.chunks[&0].get_node_mask(0);
+                                    self.octree = Octree::new(mask);
+
+                                    let nodes = self.octree.raw_data();
+                                    self.gpu.queue.write_buffer(
+                                        &self.render.node_buffer,
+                                        0,
+                                        bytemuck::cast_slice(&nodes),
+                                    );
+
+                                    self.ui.error_string = "".to_string();
+                                }
+                                None => self.ui.error_string = "No file selected".to_string(),
+                            }
                         }
                     });
 

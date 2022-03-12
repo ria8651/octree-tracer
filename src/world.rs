@@ -56,13 +56,19 @@ impl World {
         world
     }
 
-    pub fn generate_world(procedual: &mut Procedural, gpu: &Gpu) -> Self {
-        let mut world = World::new("".to_string());
-
+    pub fn generate_world<S: AsRef<std::ffi::OsStr> + Sized>(path: S, procedual: &mut Procedural, gpu: &Gpu) -> Result<(), String> {
+        // Write chunk to file
+        let path = std::path::Path::new(&path);
+        if path.exists() {
+            return Err("File already exists".to_string());
+        } else {
+            std::fs::create_dir(path).unwrap();
+        }
+        
         // let root = procedual.generate_chunk(gpu, Vector3::new(-1.0, -1.0, -1.0), 0);
-
+        
         let mut root = CpuOctree::new(0);
-        let world_depth = 2;
+        let world_depth = 3;
 
         let world_size = 1 << world_depth;
         let voxel_size = 2.0 / world_size as f32;
@@ -77,6 +83,8 @@ impl World {
         );
         pb.set_position(0);
 
+        let mut tmp_world = World::new(path.to_str().unwrap().to_string());
+
         let mut i = 0;
         for x in 0..world_size {
             for y in 0..world_size {
@@ -86,8 +94,10 @@ impl World {
 
                     let index = CHUNK_OFFSET / 2 + i as u32;
                     let chunk = procedual.generate_chunk(gpu, pos, world_depth);
-                    world.chunks.insert(index, chunk);
-                    world.generate_mip_tree(index);
+                    tmp_world.chunks.insert(index, chunk);
+                    tmp_world.generate_mip_tree(index);
+                    tmp_world.save_chunk(index);
+                    tmp_world.chunks.get_mut(&index).unwrap().nodes = Vec::new(); // To free the ram while keeping the top_mip
 
                     root.put_in_block(pos, index, world_depth);
 
@@ -99,27 +109,25 @@ impl World {
 
         println!();
 
-        world.chunks.insert(0, root);
-        world.generate_mip_tree(0);
+        tmp_world.chunks.insert(0, root);
+        tmp_world.generate_mip_tree(0);
+        tmp_world.save_chunk(0);
 
-        world
+        Ok(())
     }
 
-    pub fn save_world<S: AsRef<std::ffi::OsStr> + Sized>(&self, path: S) -> Result<(), String> {
+    pub fn save_world<S: AsRef<std::ffi::OsStr> + Sized>(&mut self, path: S) -> Result<(), String> {
         // Write chunk to file
-        use std::io::Write;
         let path = std::path::Path::new(&path);
+        self.path = path.to_str().unwrap().to_string();
         if path.exists() {
             return Err("File already exists".to_string());
         }
 
         std::fs::create_dir(path).unwrap();
-        for (index, chunk) in &self.chunks {
+        for (index, _) in &self.chunks {
             if *index == 0 || *index >= CHUNK_OFFSET / 2 {
-                let mut file =
-                    std::fs::File::create(path.join(index.to_string() + ".bin")).unwrap();
-                let data = unsafe { chunk.bin() };
-                file.write_all(data).unwrap();
+                self.save_chunk(*index)
             }
         }
 
@@ -138,6 +146,15 @@ impl World {
         world.chunks.insert(0, root);
 
         Ok(world)
+    }
+
+    pub fn save_chunk(&self, index: u32) {
+        let path = self.path.clone() + "/" + &index.to_string() + ".bin";
+        let mut file = std::fs::File::create(path).unwrap();
+        let data = unsafe { self.chunks[&index].bin() };
+
+        use std::io::Write;
+        file.write_all(data).unwrap();
     }
 
     pub fn load_chunk(&mut self, index: u32) {
