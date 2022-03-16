@@ -1,15 +1,19 @@
 use super::*;
+use dashmap::{DashMap, DashSet};
+use std::sync::Arc;
 
 pub struct World {
     pub path: String,
-    pub chunks: HashMap<u32, CpuOctree>,
+    pub chunks: Arc<DashMap<u32, CpuOctree>>,
+    pub loading: Arc<DashSet<u32>>,
 }
 
 impl World {
     pub fn new(path: String) -> Self {
         let mut world = Self {
             path,
-            chunks: HashMap::new(),
+            chunks: Arc::new(DashMap::new()),
+            loading: Arc::new(DashSet::new()),
         };
 
         world.chunks.insert(
@@ -56,7 +60,11 @@ impl World {
         world
     }
 
-    pub fn generate_world<S: AsRef<std::ffi::OsStr> + Sized>(path: S, procedual: &mut Procedural, gpu: &Gpu) -> Result<(), String> {
+    pub fn generate_world<S: AsRef<std::ffi::OsStr> + Sized>(
+        path: S,
+        procedual: &mut Procedural,
+        gpu: &Gpu,
+    ) -> Result<(), String> {
         // Write chunk to file
         let path = std::path::Path::new(&path);
         if path.exists() {
@@ -64,9 +72,7 @@ impl World {
         } else {
             std::fs::create_dir(path).unwrap();
         }
-        
         // let root = procedual.generate_chunk(gpu, Vector3::new(-1.0, -1.0, -1.0), 0);
-        
         let mut root = CpuOctree::new(0);
         let world_depth = 3;
 
@@ -116,27 +122,27 @@ impl World {
         Ok(())
     }
 
-    pub fn save_world<S: AsRef<std::ffi::OsStr> + Sized>(&mut self, path: S) -> Result<(), String> {
-        // Write chunk to file
-        let path = std::path::Path::new(&path);
-        self.path = path.to_str().unwrap().to_string();
-        if path.exists() {
-            return Err("File already exists".to_string());
-        }
+    // pub fn save_world<S: AsRef<std::ffi::OsStr> + Sized>(&mut self, path: S) -> Result<(), String> {
+    //     // Write chunk to file
+    //     let path = std::path::Path::new(&path);
+    //     self.path = path.to_str().unwrap().to_string();
+    //     if path.exists() {
+    //         return Err("File already exists".to_string());
+    //     }
 
-        std::fs::create_dir(path).unwrap();
-        for (index, _) in &self.chunks {
-            if *index == 0 || *index >= CHUNK_OFFSET / 2 {
-                self.save_chunk(*index)
-            }
-        }
+    //     std::fs::create_dir(path).unwrap();
+    //     for (index, _) in self.chunks {
+    //         if index == 0 || index >= CHUNK_OFFSET / 2 {
+    //             self.save_chunk(index)
+    //         }
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn load_world<S: AsRef<std::ffi::OsStr> + Sized>(path: S) -> Result<Self, String> {
         let path = std::path::Path::new(&path);
-        let mut world = World::new(path.to_str().unwrap().to_string());
+        let world = World::new(path.to_str().unwrap().to_string());
         if !path.exists() {
             return Err("File doesn't exist!".to_string());
         }
@@ -151,17 +157,30 @@ impl World {
     pub fn save_chunk(&self, index: u32) {
         let path = self.path.clone() + "/" + &index.to_string() + ".bin";
         let mut file = std::fs::File::create(path).unwrap();
-        let data = unsafe { self.chunks[&index].bin() };
+        let chunk = self.chunks.get(&index).unwrap();
+        let data = unsafe { chunk.bin() };
 
         use std::io::Write;
         file.write_all(data).unwrap();
     }
 
     pub fn load_chunk(&mut self, index: u32) {
+        if self.loading.contains(&index) {
+            return;
+        }
+        
+        self.loading.insert(index);
+
+        let chunks = self.chunks.clone();
+        let loading = self.loading.clone();
+        
         let path = self.path.clone() + "/" + &index.to_string() + ".bin";
-        let file = std::fs::read(path).unwrap();
-        let root = unsafe { CpuOctree::from_bin(file) };
-        self.chunks.insert(index, root);
+        tokio::task::spawn(async move {
+            let file = std::fs::read(path).unwrap();
+            let root = unsafe { CpuOctree::from_bin(file) };
+            chunks.insert(index, root);
+            loading.remove(&index);
+        });
     }
 
     /// Returns (chunk, index, depth, pos)
@@ -186,7 +205,7 @@ impl World {
 
             node_pos += Octree::pos_offset(child_index, depth);
 
-            let tnipt = self.chunks[&chunk].nodes[node_index + child_index].pointer;
+            let tnipt = self.chunks.get(&chunk).unwrap().nodes[node_index + child_index].pointer;
             if tnipt == CHUNK_OFFSET || depth == max_depth.unwrap_or(u32::MAX) {
                 return (chunk, node_index + child_index, depth, node_pos);
             } else if tnipt > CHUNK_OFFSET {
@@ -211,13 +230,13 @@ impl World {
         let mut queue = VecDeque::new();
 
         for child_index in 0..8 {
-            let node = self.chunks[&id].nodes[child_index];
+            let node = self.chunks.get(&id).unwrap().nodes[child_index];
             if node.pointer < CHUNK_OFFSET {
                 queue.push_back((child_index, 1));
             } else if node.pointer > CHUNK_OFFSET {
                 let index = node.pointer - CHUNK_OFFSET;
                 self.chunks.get_mut(&id).unwrap().nodes[child_index].value =
-                    self.chunks[&index].top_mip;
+                    self.chunks.get(&index).unwrap().top_mip;
             }
         }
 
@@ -226,17 +245,17 @@ impl World {
                 if let Some(level) = voxels_in_each_level.get_mut(depth as usize) {
                     level.push(node_index);
 
-                    let node = self.chunks[&id].nodes[node_index as usize];
+                    let node = self.chunks.get(&id).unwrap().nodes[node_index as usize];
                     for child_index in 0..8 {
-                        let child_node =
-                            self.chunks[&id].nodes[node.pointer as usize + child_index];
+                        let child_node = self.chunks.get(&id).unwrap().nodes
+                            [node.pointer as usize + child_index];
                         if child_node.pointer < CHUNK_OFFSET {
                             queue.push_back((node.pointer as usize + child_index, depth + 1));
                         } else if child_node.pointer > CHUNK_OFFSET {
                             let index = child_node.pointer - CHUNK_OFFSET;
                             self.chunks.get_mut(&id).unwrap().nodes
                                 [node.pointer as usize + child_index]
-                                .value = self.chunks[&index].top_mip;
+                                .value = self.chunks.get(&index).unwrap().top_mip;
                         }
                     }
 
@@ -258,7 +277,7 @@ impl World {
             for node_index in &voxels_in_each_level[i] {
                 // Average the colours of the 8 children
                 let node = if i != 0 {
-                    self.chunks[&id].nodes[*node_index as usize]
+                    self.chunks.get(&id).unwrap().nodes[*node_index as usize]
                 } else {
                     Node::new(0, Voxel::new(0, 0, 0))
                 };
@@ -266,7 +285,7 @@ impl World {
                 let mut divisor = 0.0;
 
                 for i in 0..8 {
-                    let child = self.chunks[&id].nodes[node.pointer as usize + i];
+                    let child = self.chunks.get(&id).unwrap().nodes[node.pointer as usize + i];
                     if child.value != Voxel::new(0, 0, 0) {
                         let voxel = child.value;
                         colour += Vector3::new(voxel.r as f32, voxel.g as f32, voxel.b as f32);

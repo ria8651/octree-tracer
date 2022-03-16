@@ -26,7 +26,8 @@ use procedural::*;
 use render::*;
 use world::*;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     println!("octree-tracer v0.1.0");
 
     env_logger::init();

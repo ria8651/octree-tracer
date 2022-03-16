@@ -30,9 +30,6 @@ impl App {
         let procedural = Procedural::new(&gpu);
 
         let world = World::load_world("worlds/defualt").unwrap();
-        for (index, chunk) in &world.chunks {
-            println!("Chunk {} (Nodes: {})", index, chunk.nodes.len());
-        }
 
         let gen_settings = GenSettings::default();
         // let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
@@ -42,7 +39,7 @@ impl App {
         //     Err(_) => defualt_octree,
         // };
 
-        let mask = world.chunks[&0].get_node_mask(0);
+        let mask = world.chunks.get(&0).unwrap().get_node_mask(0);
         let octree = Octree::new(mask);
         // let octree = world.to_octree();
 
@@ -155,7 +152,7 @@ impl App {
                                         self.world.generate_mip_tree(0);
 
                                         // Reset octree
-                                        let mask = self.world.chunks[&0].get_node_mask(0);
+                                        let mask = self.world.chunks.get(&0).unwrap().get_node_mask(0);
                                         self.octree = Octree::new(mask);
 
                                         let nodes = self.octree.raw_data();
@@ -186,7 +183,7 @@ impl App {
                                     self.world = World::load_world(path.parent().unwrap()).unwrap();
 
                                     // Reset octree
-                                    let mask = self.world.chunks[&0].get_node_mask(0);
+                                    let mask = self.world.chunks.get(&0).unwrap().get_node_mask(0);
                                     self.octree = Octree::new(mask);
 
                                     let nodes = self.octree.raw_data();
@@ -202,19 +199,19 @@ impl App {
                             }
                         }
 
-                        if ui.button("Save File").clicked() {
-                            let path = native_dialog::FileDialog::new()
-                                .show_save_single_file()
-                                .unwrap();
+                        // if ui.button("Save File").clicked() {
+                        //     let path = native_dialog::FileDialog::new()
+                        //         .show_save_single_file()
+                        //         .unwrap();
 
-                            match path {
-                                Some(path) => match self.world.save_world(path) {
-                                    Ok(_) => self.ui.error_string = "".to_string(),
-                                    Err(e) => self.ui.error_string = e,
-                                },
-                                None => self.ui.error_string = "No file selected".to_string(),
-                            }
-                        }
+                        //     match path {
+                        //         Some(path) => match self.world.save_world(path) {
+                        //             Ok(_) => self.ui.error_string = "".to_string(),
+                        //             Err(e) => self.ui.error_string = e,
+                        //         },
+                        //         None => self.ui.error_string = "No file selected".to_string(),
+                        //     }
+                        // }
 
                         if ui.button("Regenerate").clicked() {
                             let path = native_dialog::FileDialog::new()
@@ -229,7 +226,7 @@ impl App {
                                     self.world = World::load_world(path).unwrap();
 
                                     // Reset octree
-                                    let mask = self.world.chunks[&0].get_node_mask(0);
+                                    let mask = self.world.chunks.get(&0).unwrap().get_node_mask(0);
                                     self.octree = Octree::new(mask);
 
                                     let nodes = self.octree.raw_data();

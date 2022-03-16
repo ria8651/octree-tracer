@@ -3,7 +3,12 @@ use super::*;
 pub const MAX_SUBDIVISIONS_PER_FRAME: usize = 1024000;
 pub const MAX_UNSUBDIVISIONS_PER_FRAME: usize = 1024000;
 
-pub fn process_subdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree, world: &mut World) {
+pub fn process_subdivision(
+    compute: &mut Compute,
+    gpu: &Gpu,
+    octree: &mut Octree,
+    world: &mut World,
+) {
     let slice = compute.subdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
@@ -33,18 +38,22 @@ pub fn process_subdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree
             let (_, voxel_depth, _) = octree.find_voxel(pos, None);
             let (cpu_chunk, cpu_index, _, _) = world.find_voxel(pos, Some(voxel_depth));
 
-            let tnipt = world.chunks[&cpu_chunk].nodes[cpu_index];
+            let tnipt = world.chunks.get(&cpu_chunk).unwrap().nodes[cpu_index];
             if tnipt.pointer < CHUNK_OFFSET {
-                let mask = world.chunks[&cpu_chunk].get_node_mask(tnipt.pointer as usize);
+                let mask = world
+                    .chunks
+                    .get(&cpu_chunk)
+                    .unwrap()
+                    .get_node_mask(tnipt.pointer as usize);
                 octree.subdivide(node_index, mask, voxel_depth + 1);
             } else if tnipt.pointer > CHUNK_OFFSET {
-                let chunk = tnipt.pointer - CHUNK_OFFSET;
-                if let Some(chunk) = world.chunks.get(&chunk) {
-                    let mask = chunk.get_node_mask(0);
+                let chunk_id = tnipt.pointer - CHUNK_OFFSET;
+                if world.chunks.contains_key(&chunk_id) {
+                    let mask = world.chunks.get(&chunk_id).unwrap().get_node_mask(0);
                     octree.subdivide(node_index, mask, voxel_depth + 1);
                 } else {
-                    println!("Loading chunk {}", chunk);
-                    world.load_chunk(chunk);
+                    println!("Loading chunk {}", chunk_id);
+                    world.load_chunk(chunk_id);
                 }
             }
 
@@ -58,7 +67,12 @@ pub fn process_subdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree
     }
 }
 
-pub fn process_unsubdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octree, world: &mut World) {
+pub fn process_unsubdivision(
+    compute: &mut Compute,
+    gpu: &Gpu,
+    octree: &mut Octree,
+    world: &mut World,
+) {
     let slice = compute.unsubdivision_buffer.slice(..);
     let future = slice.map_async(wgpu::MapMode::Read);
 
@@ -84,7 +98,7 @@ pub fn process_unsubdivision(compute: &mut Compute, gpu: &Gpu, octree: &mut Octr
             let (_, voxel_depth, _) = octree.find_voxel(pos, None);
             let (cpu_chunk, cpu_index, _, _) = world.find_voxel(pos, Some(voxel_depth));
 
-            let tnipt = world.chunks[&cpu_chunk].nodes[cpu_index];
+            let tnipt = world.chunks.get(&cpu_chunk).unwrap().nodes[cpu_index];
             let value = if tnipt.pointer < CHUNK_OFFSET {
                 tnipt.value
             } else if tnipt.pointer > CHUNK_OFFSET {

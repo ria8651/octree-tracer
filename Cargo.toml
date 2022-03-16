@@ -21,6 +21,8 @@ egui_wgpu_backend = "0.16"
 native-dialog = "0.6"
 reinterpret = "0.2"
 indicatif = "0.16.2"
+dashmap = "5.2.0"
+tokio = { version = "1.17", features = [ "full" ] }
 
 [profile.release]
 debug = 1
