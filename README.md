@@ -1,6 +1,16 @@
 # An octree raytracer
 
-This time i'm focusing on huge worlds by streaming data to the GPU.
+This time i'm focusing on huge worlds by streaming data to the GPU. This project is a follow on from [voxel-tracing-playground](https://github.com/Ria8651/voxel-tracing-playground) and [df-tracer](https://github.com/Ria8651/df-tracer).
+
+## Running
+
+This project is very easy to run.
+
+1. [Install rust](https://www.rust-lang.org/tools/install)
+2. Clone this repository
+3. Run `cargo run --release` in this repo's directory
+
+If you have any problems feel free to create an issue.
 
 ## [Data layout](LAYOUT.md)
 
