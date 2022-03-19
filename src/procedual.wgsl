@@ -10,7 +10,8 @@ struct Uniforms {
 
 struct AtomicU32s {
     len: atomic<u32>;
-    lock: atomic<u32>; // Becuase entire buffer is interpreted as u64
+    panic: atomic<u32>;
+    lock: atomic<u32>;
     data: [[stride(4)]] array<u32>;
 };
 
@@ -23,19 +24,18 @@ var<workgroup> counter: atomic<u32>;
 
 let BLOCK_OFFSET = 2147483648u;
 
-struct Node {
-    value: u32;
-    pointing: u32;
-};
-
 fn get_node(index: u32) -> u32 {
     return n.data[index];
 }
 
 fn add_voxels() -> u32 {
     let index = atomicAdd(&n.len, 8u);
-    // let index = n.len;
-    // n.len = n.len + 8u;
+
+    if (index >= 256000000u) {
+        atomicStore(&n.panic, 1u);
+        return 0u;
+    }
+
     return index;
 }
 
@@ -149,9 +149,15 @@ fn sdf(pos: vec3<f32>) -> f32 {
 
 [[stage(compute), workgroup_size(32)]]
 fn main([[builtin(global_invocation_id)]] global_id: vec3<u32>) {
-    let id = global_id.x * u.dispatch_size + global_id.y; // ) * 24929u) % 16777216u;
     let uurrgghh = u.misc1;
-    let uurrgghh = n.data[id];
+    let uurrgghh = n.data[0];
+
+    if (atomicLoad(&n.panic) == 1u) {
+        // Somthing has gone **terribly** wrong! Just return to reduce damage.
+        return;
+    }
+
+    let id = global_id.x * u.dispatch_size + global_id.y;
     
     let side_length = 1u << u.chunk_depth;
     if (id >= side_length * side_length * side_length) {

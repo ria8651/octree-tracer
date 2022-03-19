@@ -214,9 +214,11 @@ impl App {
                         // }
 
                         if ui.button("Regenerate").clicked() {
-                            let path = native_dialog::FileDialog::new()
-                                .show_save_single_file()
-                                .unwrap();
+                            // let path = native_dialog::FileDialog::new()
+                            //     .show_save_single_file()
+                            //     .unwrap();
+
+                            let path = Some(std::path::PathBuf::from("/Users/brian/Documents/Code/Rust/octree-tracer/worlds/tmp"));
 
                             match path {
                                 Some(path) => {
@@ -410,5 +412,4 @@ impl App {
 #[derive(Default)]
 struct Ui {
     error_string: String,
-    save_file_name: String,
 }

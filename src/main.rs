@@ -1,5 +1,5 @@
 use cgmath::*;
-use std::{collections::HashMap, time::Instant};
+use std::time::Instant;
 use wgpu::util::DeviceExt;
 use winit::{
     event::*,

@@ -61,6 +61,7 @@ impl Procedural {
         let mut raw = inital_octree.raw();
         raw.insert(0, raw.len() as u32);
         raw.insert(1, 0);
+        raw.insert(2, 0);
         raw.extend(std::iter::repeat(0).take(CHUNK_SIZE.checked_sub(raw.len()).unwrap()));
 
         let cpu_octree = gpu
@@ -97,7 +98,7 @@ impl Procedural {
         }
     }
 
-    pub fn generate_chunk(&mut self, gpu: &Gpu, pos: Vector3<f32>, base_depth: u32) -> CpuOctree {
+    pub fn generate_chunk(&mut self, gpu: &Gpu, pos: Vector3<f32>, base_depth: u32) -> Option<CpuOctree> {
         let mut encoder = gpu
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -106,7 +107,7 @@ impl Procedural {
         self.uniforms.dispatch_size = dispatch_size;
         self.uniforms.pos = [pos.x, pos.y, pos.z, 0.0];
         self.uniforms.base_depth = base_depth;
-        self.uniforms.chunk_depth = 8;
+        self.uniforms.chunk_depth = 9;
 
         gpu.queue.write_buffer(
             &self.uniform_buffer,
@@ -158,10 +159,21 @@ impl Procedural {
             // Reset atomic counter
             let len = result[0] as usize;
             result[0] = 0;
-            // println!("Nodes recived from gpu: {}", len);
+            let panic = result[1] as usize;
+            result[1] = 0;
+
+            // println!("Recevied {:.1} million nodes from gpu", len as f32 / 1000000.0);
+
+            if len <= 8 || panic != 0 {
+                drop(data);
+                self.cpu_octree.unmap();
+                return None;
+            } else if len >= CHUNK_SIZE {
+                panic!("Too many nodes recived from gpu ({} nodes)", len);
+            }
 
             // Offset for len and lock
-            for i in 2..(len + 2) {
+            for i in 3..(len + 3) {
                 let pointer = result[i];
                 if pointer == 0 {
                     cpu_octree
@@ -183,7 +195,7 @@ impl Procedural {
         // println!("{:?}", cpu_octree);
         // panic!();
 
-        cpu_octree
+        Some(cpu_octree)
     }
 }
 

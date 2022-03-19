@@ -68,13 +68,19 @@ impl World {
         // Write chunk to file
         let path = std::path::Path::new(&path);
         if path.exists() {
-            return Err("File already exists".to_string());
+            if path.file_stem().unwrap() == "tmp" {
+                std::fs::remove_dir_all(path).unwrap();
+                std::fs::create_dir(path).unwrap();
+            } else {
+                return Err("File already exists".to_string());
+            }
         } else {
             std::fs::create_dir(path).unwrap();
         }
+
         // let root = procedual.generate_chunk(gpu, Vector3::new(-1.0, -1.0, -1.0), 0);
         let mut root = CpuOctree::new(0);
-        let world_depth = 3;
+        let world_depth = 2;
 
         let world_size = 1 << world_depth;
         let voxel_size = 2.0 / world_size as f32;
@@ -92,6 +98,7 @@ impl World {
         let mut tmp_world = World::new(path.to_str().unwrap().to_string());
 
         let mut i = 0;
+        // let (x, y, z) = (2, 0, 1);
         for x in 0..world_size {
             for y in 0..world_size {
                 for z in 0..world_size {
@@ -100,12 +107,21 @@ impl World {
 
                     let index = CHUNK_OFFSET / 2 + i as u32;
                     let chunk = procedual.generate_chunk(gpu, pos, world_depth);
-                    tmp_world.chunks.insert(index, chunk);
-                    tmp_world.generate_mip_tree(index);
-                    tmp_world.save_chunk(index);
-                    tmp_world.chunks.get_mut(&index).unwrap().nodes = Vec::new(); // To free the ram while keeping the top_mip
+                    if let Some(chunk) = chunk {
+                        println!(
+                            "({}, {}, {}): {} million",
+                            x,
+                            y,
+                            z,
+                            chunk.nodes.len() as f32 / 1000000.0
+                        );
 
-                    root.put_in_block(pos, index, world_depth);
+                        tmp_world.chunks.insert(index, chunk);
+                        tmp_world.generate_mip_tree(index);
+                        tmp_world.save_chunk(index);
+                        tmp_world.chunks.get_mut(&index).unwrap().nodes = Vec::new(); // To free the ram while keeping the top_mip
+                        root.put_in_block(pos, index, world_depth);
+                    }
 
                     i += 1;
                     pb.set_position(i);
@@ -168,12 +184,10 @@ impl World {
         if self.loading.contains(&index) {
             return;
         }
-        
         self.loading.insert(index);
 
         let chunks = self.chunks.clone();
         let loading = self.loading.clone();
-        
         let path = self.path.clone() + "/" + &index.to_string() + ".bin";
         tokio::task::spawn(async move {
             let file = std::fs::read(path).unwrap();
@@ -240,8 +254,16 @@ impl World {
             }
         }
 
+        println!("Staring to mip...");
+
+        let mut i = 0;
         while let Some((node_index, depth)) = queue.pop_front() {
             loop {
+                if i % 1000000 == 0 {
+                    println!("Cataloged {} million nodes", i / 1000000);
+                }
+                i += 1;
+
                 if let Some(level) = voxels_in_each_level.get_mut(depth as usize) {
                     level.push(node_index);
 
@@ -253,9 +275,10 @@ impl World {
                             queue.push_back((node.pointer as usize + child_index, depth + 1));
                         } else if child_node.pointer > CHUNK_OFFSET {
                             let index = child_node.pointer - CHUNK_OFFSET;
+                            let top_mip = self.chunks.get(&index).unwrap().top_mip;
                             self.chunks.get_mut(&id).unwrap().nodes
                                 [node.pointer as usize + child_index]
-                                .value = self.chunks.get(&index).unwrap().top_mip;
+                                .value = top_mip;
                         }
                     }
 
@@ -309,7 +332,6 @@ impl World {
             }
         }
 
-        // println!("{:?}", self);
-        // panic!();
+        println!("Mip success!");
     }
 }
