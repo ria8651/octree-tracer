@@ -80,7 +80,7 @@ impl World {
 
         // let root = procedual.generate_chunk(gpu, Vector3::new(-1.0, -1.0, -1.0), 0);
         let mut root = CpuOctree::new(0);
-        let world_depth = 2;
+        let world_depth = 1;
 
         let world_size = 1 << world_depth;
         let voxel_size = 2.0 / world_size as f32;

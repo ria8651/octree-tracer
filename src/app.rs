@@ -29,7 +29,11 @@ impl App {
         let gpu = Gpu::new(window).await;
         let procedural = Procedural::new(&gpu);
 
-        let world = World::load_world("worlds/defualt").unwrap();
+        // let world = World::load_world("worlds/defualt").unwrap();
+        let mut world = World::new(String::new());
+        let chunk = CpuOctree::load_file("files/statuette.rsvo".to_string(), 10).unwrap();
+        world.chunks.insert(0, chunk);
+        world.generate_mip_tree(0);
 
         let gen_settings = GenSettings::default();
         // let cpu_octree = generate_world(&gen_settings, &blocks).unwrap();
@@ -39,9 +43,9 @@ impl App {
         //     Err(_) => defualt_octree,
         // };
 
+        // let octree = Octree::new([Voxel::new(255, 255, 255); 8]);
         let mask = world.chunks.get(&0).unwrap().get_node_mask(0);
         let octree = Octree::new(mask);
-        // let octree = world.to_octree();
 
         let render = Render::new(&gpu, window, &octree).await;
         let compute = Compute::new(&gpu, &render);
@@ -152,7 +156,8 @@ impl App {
                                         self.world.generate_mip_tree(0);
 
                                         // Reset octree
-                                        let mask = self.world.chunks.get(&0).unwrap().get_node_mask(0);
+                                        let mask =
+                                            self.world.chunks.get(&0).unwrap().get_node_mask(0);
                                         self.octree = Octree::new(mask);
 
                                         let nodes = self.octree.raw_data();
@@ -214,11 +219,11 @@ impl App {
                         // }
 
                         if ui.button("Regenerate").clicked() {
-                            // let path = native_dialog::FileDialog::new()
-                            //     .show_save_single_file()
-                            //     .unwrap();
+                            let path = native_dialog::FileDialog::new()
+                                .show_save_single_file()
+                                .unwrap();
 
-                            let path = Some(std::path::PathBuf::from("/Users/brian/Documents/Code/Rust/octree-tracer/worlds/tmp"));
+                            // let path = Some(std::path::PathBuf::from("/Users/brian/Documents/Code/Rust/octree-tracer/worlds/tmp"));
 
                             match path {
                                 Some(path) => {
